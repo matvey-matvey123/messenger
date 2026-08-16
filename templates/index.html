@@ -16,6 +16,9 @@
     --accent-dark: #3a63d8;
     --msg-self: #24314f;
     --msg-other: #1e212c;
+    --green: #2ecc71;
+    --gray: #5a6172;
+    --red: #ff5f56;
   }
   body {
     font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
@@ -25,14 +28,58 @@
     display: flex;
     flex-direction: column;
   }
-  header {
+  .hidden { display: none !important; }
+  button { font-family: inherit; }
+
+  /* ---------- Auth screen ---------- */
+  .auth-screen {
+    flex: 1;
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 12px 20px;
+    justify-content: center;
+    padding: 20px;
+  }
+  .auth-card {
     background: var(--panel);
-    border-bottom: 1px solid var(--border);
-    flex: 0 0 auto;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 32px;
+    width: 100%;
+    max-width: 380px;
+  }
+  .auth-logo {
+    width: 52px; height: 52px; border-radius: 14px;
+    background: linear-gradient(135deg, var(--accent), #7a5bff);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 26px; color: #fff;
+    margin: 0 auto 14px;
+  }
+  .auth-card h1 { text-align: center; font-size: 22px; margin-bottom: 22px; }
+  .tabs { display: flex; background: var(--bg); border-radius: 10px; padding: 4px; margin-bottom: 18px; }
+  .tab {
+    flex: 1; padding: 9px; border: none; border-radius: 8px;
+    background: transparent; color: var(--muted); font-size: 14px; font-weight: 600; cursor: pointer;
+  }
+  .tab.active { background: var(--accent); color: #fff; }
+  .auth-form { display: flex; flex-direction: column; gap: 12px; }
+  .auth-form input {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 10px;
+    color: var(--text); padding: 12px 14px; font-size: 15px; outline: none;
+  }
+  .auth-form input:focus { border-color: var(--accent); }
+  .auth-form button {
+    background: var(--accent); border: none; color: #fff; border-radius: 10px;
+    padding: 12px; font-size: 15px; font-weight: 600; cursor: pointer;
+  }
+  .auth-form button:hover { background: var(--accent-dark); }
+  .auth-error { color: var(--red); font-size: 13px; min-height: 18px; }
+
+  /* ---------- Chat screen ---------- */
+  .chat-screen { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 20px; background: var(--panel);
+    border-bottom: 1px solid var(--border); flex: 0 0 auto;
   }
   header .logo {
     width: 36px; height: 36px; border-radius: 10px;
@@ -41,125 +88,176 @@
     font-weight: 700; font-size: 18px; color: #fff;
   }
   header h1 { font-size: 18px; font-weight: 600; }
-  header .you {
-    margin-left: auto;
-    font-size: 14px; color: var(--muted);
-    display: flex; align-items: center; gap: 8px;
-  }
+  header .you { margin-left: auto; font-size: 14px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
   #yourName { color: var(--text); font-weight: 600; }
-  #changeName {
+  #logoutBtn {
     background: none; border: 1px solid var(--border); color: var(--muted);
-    padding: 4px 10px; border-radius: 8px; cursor: pointer; font-size: 13px;
+    padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 13px;
   }
-  #changeName:hover { color: var(--text); border-color: var(--accent); }
+  #logoutBtn:hover { color: var(--red); border-color: var(--red); }
+  .main { flex: 1; display: flex; min-height: 0; }
+
+  .sidebar {
+    width: 270px; flex: 0 0 270px; background: var(--panel);
+    border-right: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0;
+  }
+  .sidebar .side-title {
+    padding: 14px 16px 8px; font-size: 12px; font-weight: 700; letter-spacing: .06em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  #search {
+    margin: 0 12px 10px; background: var(--bg); border: 1px solid var(--border);
+    border-radius: 10px; color: var(--text); padding: 10px 12px; font-size: 14px; outline: none;
+  }
+  #search:focus { border-color: var(--accent); }
+  .stats {
+    display: flex; gap: 6px; padding: 0 12px 12px; flex-wrap: wrap;
+  }
+  .stat {
+    flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: 10px;
+    padding: 8px; text-align: center; min-width: 74px;
+  }
+  .stat .num { font-size: 18px; font-weight: 700; }
+  .stat .lbl { font-size: 11px; color: var(--muted); }
+  .stat.online .num { color: var(--green); }
+  .stat.offline .num { color: var(--gray); }
+  .user-list { flex: 1; overflow-y: auto; padding: 0 8px 12px; }
+  .user-item {
+    display: flex; align-items: center; gap: 10px; padding: 9px 10px;
+    border-radius: 10px; cursor: pointer;
+  }
+  .user-item:hover { background: var(--bg); }
+  .user-item .dot { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 10px; }
+  .user-item .dot.on { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .user-item .dot.off { background: var(--gray); }
+  .user-item .u-info { min-width: 0; }
+  .user-item .u-name { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .user-item .u-login { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .user-item.me { opacity: .7; }
+  .user-list .empty { color: var(--muted); font-size: 13px; padding: 12px; text-align: center; }
+
   #messages {
-    flex: 1 1 auto;
-    overflow-y: auto;
-    padding: 20px;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
+    flex: 1; overflow-y: auto; padding: 20px;
+    display: flex; flex-direction: column; gap: 10px;
   }
   .msg { max-width: 68%; display: flex; flex-direction: column; gap: 2px; }
   .msg .meta { font-size: 12px; color: var(--muted); display: flex; gap: 8px; align-items: baseline; }
   .msg .bubble {
-    padding: 10px 14px;
-    border-radius: 14px;
-    background: var(--msg-other);
-    border: 1px solid var(--border);
-    line-height: 1.4;
-    font-size: 15px;
-    word-wrap: break-word;
-    overflow-wrap: anywhere;
-    white-space: pre-wrap;
+    padding: 10px 14px; border-radius: 14px; background: var(--msg-other);
+    border: 1px solid var(--border); line-height: 1.4; font-size: 15px;
+    word-wrap: break-word; overflow-wrap: anywhere; white-space: pre-wrap;
   }
   .msg.mine { align-self: flex-end; align-items: flex-end; }
-  .msg.mine .bubble {
-    background: var(--msg-self);
-    border-color: var(--accent-dark);
-    border-bottom-right-radius: 4px;
-  }
+  .msg.mine .bubble { background: var(--msg-self); border-color: var(--accent-dark); border-bottom-right-radius: 4px; }
   .msg.other { align-self: flex-start; align-items: flex-start; }
   .msg.other .bubble { border-bottom-left-radius: 4px; }
   .msg .name { font-weight: 600; font-size: 13px; }
   .msg .time { font-size: 11px; }
-  .empty {
-    margin: auto;
-    color: var(--muted);
-    text-align: center;
-    font-size: 14px;
-    padding: 20px;
-  }
+  .empty { margin: auto; color: var(--muted); text-align: center; font-size: 14px; padding: 20px; }
+
   footer {
-    flex: 0 0 auto;
-    padding: 12px 20px;
-    background: var(--panel);
-    border-top: 1px solid var(--border);
-    display: flex;
-    gap: 10px;
+    flex: 0 0 auto; padding: 12px 20px; background: var(--panel);
+    border-top: 1px solid var(--border); display: flex; gap: 10px;
   }
   #input {
-    flex: 1;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    color: var(--text);
-    padding: 12px 16px;
-    font-size: 15px;
-    outline: none;
-    resize: none;
-    font-family: inherit;
-    max-height: 140px;
+    flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: 12px;
+    color: var(--text); padding: 12px 16px; font-size: 15px; outline: none; resize: none;
+    font-family: inherit; max-height: 140px;
   }
   #input:focus { border-color: var(--accent); }
   #send {
-    background: var(--accent);
-    border: none;
-    color: #fff;
-    border-radius: 12px;
-    padding: 0 22px;
-    font-size: 15px;
-    font-weight: 600;
-    cursor: pointer;
+    background: var(--accent); border: none; color: #fff; border-radius: 12px;
+    padding: 0 22px; font-size: 15px; font-weight: 600; cursor: pointer;
   }
   #send:hover { background: var(--accent-dark); }
   #send:disabled { opacity: 0.5; cursor: default; }
   ::-webkit-scrollbar { width: 8px; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
-  @media (max-width: 600px) {
+  @media (max-width: 700px) {
+    .sidebar { width: 200px; flex-basis: 200px; }
     .msg { max-width: 85%; }
     header h1 { font-size: 16px; }
   }
 </style>
 </head>
 <body>
-  <header>
-    <div class="logo">М</div>
-    <h1>Мессенджер</h1>
-    <div class="you">
-      Вы: <span id="yourName">...</span>
-      <button id="changeName">Сменить имя</button>
-    </div>
-  </header>
+  <!-- Auth screen -->
+  <div id="authScreen" class="auth-screen">
+    <div class="auth-card">
+      <div class="auth-logo">М</div>
+      <h1>Мессенджер</h1>
+      <div class="tabs">
+        <button id="tabLogin" class="tab active">Вход</button>
+        <button id="tabRegister" class="tab">Регистрация</button>
+      </div>
 
-  <div id="messages">
-    <div class="empty">Пока нет сообщений. Напишите первым!</div>
+      <form id="loginForm" class="auth-form">
+        <input id="loginLogin" placeholder="Логин" autocomplete="username">
+        <input id="loginPassword" type="password" placeholder="Пароль" autocomplete="current-password">
+        <div id="loginError" class="auth-error"></div>
+        <button type="submit">Войти</button>
+      </form>
+
+      <form id="registerForm" class="auth-form hidden">
+        <input id="regName" placeholder="Имя" autocomplete="name">
+        <input id="regLogin" placeholder="Логин" autocomplete="username">
+        <input id="regPassword" type="password" placeholder="Пароль (минимум 4 символа)" autocomplete="new-password">
+        <div id="regError" class="auth-error"></div>
+        <button type="submit">Зарегистрироваться</button>
+      </form>
+    </div>
   </div>
 
-  <footer>
-    <textarea id="input" rows="1" placeholder="Введите сообщение..." maxlength="1000"></textarea>
-    <button id="send" disabled>Отправить</button>
-  </footer>
+  <!-- Chat screen -->
+  <div id="chatScreen" class="chat-screen hidden">
+    <header>
+      <div class="logo">М</div>
+      <h1>Мессенджер</h1>
+      <div class="you">
+        Вы: <span id="yourName">...</span>
+        <button id="logoutBtn">Выйти</button>
+      </div>
+    </header>
+
+    <div class="main">
+      <aside class="sidebar">
+        <div class="side-title">Пользователи</div>
+        <input id="search" placeholder="Поиск по логину...">
+        <div class="stats">
+          <div class="stat online"><div class="num" id="statOnline">0</div><div class="lbl">В сети</div></div>
+          <div class="stat offline"><div class="num" id="statOffline">0</div><div class="lbl">Не в сети</div></div>
+          <div class="stat"><div class="num" id="statTotal">0</div><div class="lbl">Всего</div></div>
+        </div>
+        <div class="user-list" id="userList"></div>
+      </aside>
+
+      <div id="messages">
+        <div class="empty">Напишите первым!</div>
+      </div>
+    </div>
+
+    <footer>
+      <textarea id="input" rows="1" placeholder="Введите сообщение..." maxlength="1000"></textarea>
+      <button id="send" disabled>Отправить</button>
+    </footer>
+  </div>
 
 <script>
 (function () {
-  const elMessages = document.getElementById('messages');
-  const elInput = document.getElementById('input');
-  const elSend = document.getElementById('send');
-  const elYourName = document.getElementById('yourName');
-  const elChangeName = document.getElementById('changeName');
+  const $ = (id) => document.getElementById(id);
+  const elAuth = $('authScreen');
+  const elChat = $('chatScreen');
+  const elMessages = $('messages');
+  const elInput = $('input');
+  const elSend = $('send');
+  const elYourName = $('yourName');
+  const elUserList = $('userList');
+  const elSearch = $('search');
+  const elStatOnline = $('statOnline');
+  const elStatOffline = $('statOffline');
+  const elStatTotal = $('statTotal');
 
-  let myName = '';
+  let me = null;
   let lastId = 0;
   let pending = false;
 
@@ -168,39 +266,149 @@
     for (const c of name) h = (h * 31 + c.codePointAt(0)) % 360;
     return `hsl(${h}, 70%, 65%)`;
   };
-  const escapeHtml = (s) =>
-    s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   const fmtTime = (t) => {
     const d = new Date(t * 1000);
     return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
   };
 
-  async function fetchMe() {
-    try {
-      const r = await fetch('/api/me');
-      const data = await r.json();
-      myName = data.name;
-      elYourName.textContent = myName || '(не задано)';
-      if (!myName) setName();
-    } catch (e) { /* ignore */ }
+  function showAuth() { elAuth.classList.remove('hidden'); elChat.classList.add('hidden'); }
+  function showChat() {
+    elAuth.classList.add('hidden');
+    elChat.classList.remove('hidden');
+    elYourName.textContent = me.name + ' (' + me.login + ')';
+    elInput.focus();
   }
 
-  async function setName() {
-    const name = prompt('Как вас зовут?', myName || '');
-    if (!name) { if (!myName) setName(); return; }
+  async function api(url, opts) {
+    const r = await fetch(url, opts);
+    let data = null;
+    try { data = await r.json(); } catch (e) { /* ignore */ }
+    if (!r.ok) throw (data && data.error) || ('Ошибка ' + r.status);
+    return data;
+  }
+
+  // ---------- Auth ----------
+  async function checkMe() {
     try {
-      const r = await fetch('/api/me', {
+      const data = await api('/api/me');
+      if (data.authenticated) {
+        me = { login: data.login, name: data.name };
+        showChat();
+      } else {
+        showAuth();
+      }
+    } catch (e) { showAuth(); }
+  }
+
+  async function doLogin(e) {
+    e.preventDefault();
+    const err = $('loginError');
+    err.textContent = '';
+    try {
+      const data = await api('/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim() })
+        body: JSON.stringify({ login: $('loginLogin').value.trim(), password: $('loginPassword').value })
       });
-      const data = await r.json();
-      myName = data.name;
-      elYourName.textContent = myName;
+      me = { login: data.login, name: data.name };
+      $('loginPassword').value = '';
+      showChat();
+    } catch (msg) {
+      err.textContent = msg;
+    }
+  }
+
+  async function doRegister(e) {
+    e.preventDefault();
+    const err = $('regError');
+    err.textContent = '';
+    try {
+      const data = await api('/api/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: $('regName').value.trim(),
+          login: $('regLogin').value.trim(),
+          password: $('regPassword').value
+        })
+      });
+      me = { login: data.login, name: data.name };
+      $('regName').value = ''; $('regLogin').value = ''; $('regPassword').value = '';
+      showChat();
+    } catch (msg) {
+      err.textContent = msg;
+    }
+  }
+
+  async function doLogout() {
+    try { await api('/api/logout', { method: 'POST' }); } catch (e) { /* ignore */ }
+    me = null;
+    lastId = 0;
+    elMessages.innerHTML = '<div class="empty">Напишите первым!</div>';
+    showAuth();
+  }
+
+  $('loginForm').addEventListener('submit', doLogin);
+  $('registerForm').addEventListener('submit', doRegister);
+  $('logoutBtn').addEventListener('click', doLogout);
+  $('tabLogin').addEventListener('click', () => {
+    $('tabLogin').classList.add('active'); $('tabRegister').classList.remove('active');
+    $('loginForm').classList.remove('hidden'); $('registerForm').classList.add('hidden');
+  });
+  $('tabRegister').addEventListener('click', () => {
+    $('tabRegister').classList.add('active'); $('tabLogin').classList.remove('active');
+    $('registerForm').classList.remove('hidden'); $('loginForm').classList.add('hidden');
+  });
+
+  // ---------- User list ----------
+  function renderUsers(users) {
+    const q = elSearch.value.trim().toLowerCase();
+    const filtered = users.filter(u => u.login.toLowerCase().includes(q));
+    const online = users.filter(u => u.online).length;
+
+    elStatOnline.textContent = online;
+    elStatOffline.textContent = users.length - online;
+    elStatTotal.textContent = users.length;
+
+    elUserList.innerHTML = '';
+    if (!filtered.length) {
+      const div = document.createElement('div');
+      div.className = 'empty';
+      div.textContent = q ? 'Никого не найдено' : 'Пока нет пользователей';
+      elUserList.appendChild(div);
+      return;
+    }
+    for (const u of filtered) {
+      const item = document.createElement('div');
+      item.className = 'user-item' + (u.login === me.login ? ' me' : '');
+      const dot = document.createElement('span');
+      dot.className = 'dot ' + (u.online ? 'on' : 'off');
+      const info = document.createElement('div');
+      info.className = 'u-info';
+      const nm = document.createElement('div');
+      nm.className = 'u-name';
+      nm.style.color = colorFor(u.login);
+      nm.textContent = u.name;
+      const lg = document.createElement('div');
+      lg.className = 'u-login';
+      lg.textContent = '@' + u.login;
+      info.appendChild(nm);
+      info.appendChild(lg);
+      item.appendChild(dot);
+      item.appendChild(info);
+      elUserList.appendChild(item);
+    }
+  }
+
+  async function pollUsers() {
+    if (!me) return;
+    try {
+      const users = await api('/api/users');
+      renderUsers(users);
     } catch (e) { /* ignore */ }
   }
 
+  // ---------- Messages ----------
   function addMessage(m) {
     if (document.querySelector(`.msg[data-id="${m.id}"]`)) return;
     const empty = document.querySelector('.empty');
@@ -209,14 +417,14 @@
     const nearBottom = elMessages.scrollHeight - elMessages.scrollTop - elMessages.clientHeight < 80;
 
     const div = document.createElement('div');
-    div.className = 'msg ' + (m.name === myName ? 'mine' : 'other');
+    div.className = 'msg ' + (m.login === me.login ? 'mine' : 'other');
     div.dataset.id = m.id;
 
     const meta = document.createElement('div');
     meta.className = 'meta';
     const name = document.createElement('span');
     name.className = 'name';
-    name.style.color = colorFor(m.name);
+    name.style.color = colorFor(m.login);
     name.textContent = m.name;
     const time = document.createElement('span');
     time.className = 'time';
@@ -236,31 +444,28 @@
     if (m.id > lastId) lastId = m.id;
   }
 
-  async function poll() {
+  async function pollMessages() {
+    if (!me) return;
     try {
-      const r = await fetch('/api/messages?after=' + lastId);
-      const data = await r.json();
+      const data = await api('/api/messages?after=' + lastId);
       for (const m of data) addMessage(m);
     } catch (e) { /* ignore */ }
   }
 
   async function send() {
     const text = elInput.value.trim();
-    if (!text || pending || !myName) return;
+    if (!text || pending || !me) return;
     pending = true;
     elSend.disabled = true;
     try {
-      const r = await fetch('/api/messages', {
+      const m = await api('/api/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: myName, text: text })
+        body: JSON.stringify({ text: text })
       });
-      if (r.ok) {
-        const m = await r.json();
-        addMessage(m);
-        elInput.value = '';
-        elInput.style.height = 'auto';
-      }
+      addMessage(m);
+      elInput.value = '';
+      elInput.style.height = 'auto';
     } catch (e) { /* ignore */ }
     pending = false;
     elSend.disabled = false;
@@ -279,10 +484,11 @@
     elInput.style.height = Math.min(elInput.scrollHeight, 140) + 'px';
     elSend.disabled = !elInput.value.trim();
   });
-  elChangeName.addEventListener('click', setName);
+  elSearch.addEventListener('input', pollUsers);
 
-  fetchMe();
-  setInterval(poll, 1000);
+  checkMe();
+  setInterval(pollMessages, 1000);
+  setInterval(pollUsers, 3000);
 })();
 </script>
 </body>
