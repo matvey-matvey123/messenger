@@ -88,10 +88,14 @@
   .user-item.me { opacity: .7; }
   .u-name.admin { color: var(--red) !important; }
   .u-name.owner { color: var(--blue) !important; }
+  .u-name.senior { color: var(--gold) !important; }
+  .u-name.junior { color: #d48a2e !important; }
   .badge { font-size: 9px; font-weight: 700; color: #fff; background: var(--red-dim); padding: 1px 5px; border-radius: 6px; letter-spacing: .04em; flex: 0 0 auto; }
   .badge.gold { background: var(--gold); color: #000; }
   .badge.blue { background: var(--blue); color: #fff; }
   .badge.mutedb { background: var(--gray); }
+  .badge.senior { background: var(--gold); color: #000; }
+  .badge.junior { background: #b3403a; color: #fff; }
   .user-list .empty { color: var(--muted); font-size: 13px; padding: 12px; text-align: center; }
   .hidden-title { font-size: 11px; color: var(--muted); padding: 14px 12px 4px; font-weight: 700; }
 
@@ -123,7 +127,18 @@
   .msg .name { font-weight: 600; font-size: 13px; }
   .msg .name.admin { color: var(--red) !important; }
   .msg .name.owner { color: var(--blue) !important; }
+  .msg .name.senior { color: var(--gold) !important; }
+  .msg .name.junior { color: #d48a2e !important; }
   .msg .time { font-size: 11px; }
+  .msg .edited-mark { font-size: 10px; color: var(--muted); font-style: italic; margin-left: 4px; }
+  .msg .bubble.deleted { color: var(--muted); font-style: italic; }
+  .msg.selected { outline: 1px solid var(--accent); border-radius: 14px; }
+  #rulesBtn { color: var(--accent); border-color: var(--accent); }
+  #rulesBtn:hover { background: var(--accent); color: #fff; }
+  .msg .m-actions { display: flex; gap: 6px; margin-top: 2px; }
+  .msg .m-actions button { background: none; border: 1px solid var(--border); color: var(--muted); border-radius: 6px; padding: 2px 8px; font-size: 11px; cursor: pointer; }
+  .msg .m-actions button:hover { color: var(--text); border-color: var(--accent); }
+  .msg .m-actions button.danger:hover { color: var(--red); border-color: var(--red); }
   .media-img { max-width: 320px; max-height: 320px; border-radius: 8px; display: block; }
   .media-vid { max-width: 320px; max-height: 320px; border-radius: 8px; display: block; }
   .empty { margin: auto; color: var(--muted); text-align: center; font-size: 14px; padding: 20px; }
@@ -153,6 +168,8 @@
   .xbtn:hover { color: var(--red); }
   .admin-content { flex: 1; overflow-y: auto; padding: 16px; }
   .admin-toolbar { display: flex; gap: 10px; margin-bottom: 14px; align-items: center; flex-wrap: wrap; }
+  .admin-toolbar .tab { flex: 0 0 auto; padding: 6px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--muted); font-size: 13px; font-weight: 600; cursor: pointer; }
+  .admin-toolbar .tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
   #adminSearch { flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; color: var(--text); padding: 10px 12px; font-size: 14px; outline: none; min-width: 150px; }
   #adminSearch:focus { border-color: var(--accent); }
   .back-btn { background: none; border: 1px solid var(--border); color: var(--muted); padding: 8px 14px; border-radius: 8px; cursor: pointer; font-size: 13px; }
@@ -275,6 +292,7 @@
       <div class="you">
         <span id="miniAv" class="mini-av" title="Профиль"></span>
         Вы: <span id="yourName">...</span>
+        <button id="rulesBtn" class="hbtn" title="Правила чата">📜 Правила</button>
         <button id="settingsBtn" class="hbtn" title="Настройки">⚙</button>
         <button id="profileBtn" class="hbtn">Профиль</button>
         <button id="logoutBtn" class="hbtn">Выйти</button>
@@ -427,6 +445,9 @@
   let lastIds = { public: 0 };
   let pending = false;
   let pendingFile = null;
+  let lastMsgId = 0;
+  let selectedMsg = null;
+  const msgById = {};
 
   const colorFor = (name) => {
     let h = 0;
@@ -486,11 +507,24 @@
     elInput.focus();
   }
 
+  function roleInfo(u) {
+    if (!u) return null;
+    if (u.is_owner || u.role === 'owner') return { cls: 'badge blue', nameCls: 'owner', text: 'Владелец' };
+    if (u.role === 'senior_admin') return { cls: 'badge senior', nameCls: 'senior', text: 'Старший админ' };
+    if (u.role === 'junior_admin') return { cls: 'badge junior', nameCls: 'junior', text: 'Младший админ' };
+    if (u.is_admin) return { cls: 'badge', nameCls: 'admin', text: 'ADMIN' };
+    return null;
+  }
+  const canComplaints = () => me && (me.is_owner || me.role === 'senior_admin');
+  const canMute = () => me && (me.is_owner || me.role === 'senior_admin');
+  const canDelete = () => me && me.is_owner;
+  const canPromote = () => me && (me.is_owner || me.role === 'senior_admin');
+
   async function checkMe() {
     try {
       const data = await api('/api/me');
       if (data.authenticated) {
-        me = { login: data.login, name: data.name, is_admin: data.is_admin, is_owner: data.is_owner, avatar: data.avatar };
+        me = { login: data.login, name: data.name, is_admin: data.is_admin, is_owner: data.is_owner, role: data.role || '', avatar: data.avatar };
         showChat();
       } else showAuth();
     } catch (e) { showAuth(); }
@@ -501,7 +535,7 @@
     const err = $('loginError'); err.textContent = '';
     try {
       const data = await api('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: $('loginLogin').value.trim(), password: $('loginPassword').value }) });
-      me = { login: data.login, name: data.name, is_admin: data.is_admin, is_owner: data.is_owner, avatar: data.avatar };
+      me = { login: data.login, name: data.name, is_admin: data.is_admin, is_owner: data.is_owner, role: data.role || '', avatar: data.avatar };
       $('loginPassword').value = '';
       showChat();
     } catch (msg) { err.textContent = msg; }
@@ -512,7 +546,7 @@
     const err = $('regError'); err.textContent = '';
     try {
       const data = await api('/api/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: $('regName').value.trim(), login: $('regLogin').value.trim(), password: $('regPassword').value }) });
-      me = { login: data.login, name: data.name, is_admin: data.is_admin, is_owner: data.is_owner, avatar: '' };
+      me = { login: data.login, name: data.name, is_admin: data.is_admin, is_owner: data.is_owner, role: data.role || '', avatar: '' };
       $('regName').value = ''; $('regLogin').value = ''; $('regPassword').value = '';
       showChat();
     } catch (msg) { err.textContent = msg; }
@@ -536,7 +570,9 @@
   // ---------- Sidebar ----------
   function nameBadges(u) {
     const badges = [];
-    if (u.is_admin && !u.is_owner) badges.push({ cls: 'badge', text: 'ADMIN' });    if (u.muted) badges.push({ cls: 'badge mutedb', text: '🔇 ' + (u.muted_until ? fmtMute(u.muted_until) : '') });
+    const ri = roleInfo(u);
+    if (ri) badges.push({ cls: ri.cls, text: ri.text });
+    if (u.muted) badges.push({ cls: 'badge mutedb', text: '🔇 ' + (u.muted_until ? fmtMute(u.muted_until) : '') });
     return badges;
   }
   function fmtMute(ts) {
@@ -583,12 +619,12 @@
       const info = document.createElement('div');
       info.className = 'u-info';
       const nm = document.createElement('div');
-      const nmCls = u.is_owner ? 'owner' : (u.is_admin ? 'admin' : '');
-      nm.className = 'u-name' + (nmCls ? ' ' + nmCls : '');
-      if (!nmCls) nm.style.color = colorFor(u.login);
-      if (u.is_owner) {
+      const ri = roleInfo(u);
+      nm.className = 'u-name' + (ri ? ' ' + ri.nameCls : '');
+      if (!ri) nm.style.color = colorFor(u.login);
+      if (ri) {
         const pref = document.createElement('span');
-        pref.className = 'badge blue'; pref.textContent = 'Владелец';
+        pref.className = ri.cls; pref.textContent = ri.text;
         nm.appendChild(pref);
         nm.appendChild(document.createTextNode(' ' + u.name));
       } else {
@@ -631,9 +667,25 @@
           u.hidden = !u.hidden; renderUsers();
         } catch (err) { alert(err); }
       }});
+      items.push({ label: 'Отправить жалобу', fn: async () => {
+        let mid = 0;
+        const last = document.querySelector(`#messages .msg[data-id]`) && Array.from(document.querySelectorAll('#messages .msg')).reverse().find(el => {
+          const m = msgById[el.dataset.id]; return m && m.login === u.login;
+        });
+        if (last) mid = parseInt(last.dataset.id, 10);
+        if (!mid) {
+          const inp = prompt('Укажите id сообщения для жалобы:');
+          if (inp === null) return;
+          mid = parseInt(inp, 10) || 0;
+        }
+        try {
+          await api('/api/complaints', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message_id: mid }) });
+          alert('Жалоба на @' + u.login + ' отправлена');
+        } catch (err) { alert(err); }
+      }});
     }
 
-    if (me.is_admin && u.login !== me.login && !protect) {
+    if (canMute() && u.login !== me.login && !protect) {
       items.push({ label: u.muted ? 'Снять мут' : 'Замутить', fn: async () => {
         try {
           if (u.muted) {
@@ -651,19 +703,27 @@
       }});
     }
 
-    if (me.is_admin && u.login !== me.login && !u.is_admin && !protect) {
-      items.push({ label: 'Сделать админом', fn: async () => {
+    if (canPromote() && u.login !== me.login && !u.is_admin && !protect) {
+      items.push({ label: 'Сделать младшим админом', fn: async () => {
         try {
-          await api('/api/admin/promote', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: u.login }) });
-          u.is_admin = true; renderUsers();
+          await api('/api/admin/promote', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: u.login, role: 'junior_admin' }) });
+          u.is_admin = true; u.role = 'junior_admin'; renderUsers();
         } catch (err) { alert(err); }
       }});
+      if (me.is_owner) {
+        items.push({ label: 'Сделать старшим админом', fn: async () => {
+          try {
+            await api('/api/admin/promote', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: u.login, role: 'senior_admin' }) });
+            u.is_admin = true; u.role = 'senior_admin'; renderUsers();
+          } catch (err) { alert(err); }
+        }});
+      }
     }
-    if (me.is_admin && u.login !== me.login && u.is_admin && !u.is_owner) {
+    if (canPromote() && u.login !== me.login && u.is_admin && !u.is_owner) {
       items.push({ label: 'Разжаловать', fn: async () => {
         try {
           await api('/api/admin/demote', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: u.login }) });
-          u.is_admin = false; renderUsers();
+          u.is_admin = false; u.role = ''; renderUsers();
         } catch (err) { alert(err); }
       }});
     }
@@ -671,7 +731,7 @@
       if (u.login !== me.login) {
         items.push({ label: 'Просмотреть переписку', fn: () => openAdminUser(u.login) });
       }
-      if (u.login !== me.login && !protect) {
+      if (canDelete() && u.login !== me.login && !protect) {
         items.push({ label: 'Удалить пользователя', danger: true, fn: async () => {
           if (!confirm('Точно удалить пользователя ' + u.login + '? Все его сообщения будут удалены.')) return;
           try {
@@ -719,11 +779,12 @@
       const u = currentChat.with;
       elChatTitle.textContent = '';
       const nm = document.createElement('span');
-      nm.className = 'u-name' + (u.is_owner ? ' owner' : (u.is_admin ? ' admin' : ''));
-      nm.style.color = (u.is_owner || u.is_admin) ? '' : colorFor(u.login);
-      if (u.is_owner) {
+      const ri = roleInfo(u);
+      nm.className = 'u-name' + (ri ? ' ' + ri.nameCls : '');
+      nm.style.color = ri ? '' : colorFor(u.login);
+      if (ri) {
         const pref = document.createElement('span');
-        pref.className = 'badge blue'; pref.textContent = 'Владелец';
+        pref.className = ri.cls; pref.textContent = ri.text;
         nm.appendChild(pref);
         nm.appendChild(document.createTextNode(' ' + u.name));
       } else {
@@ -748,6 +809,7 @@
   function openPublicChat() {
     currentChat = { type: 'public' };
     if (!(chatKey(currentChat) in lastIds)) lastIds[chatKey(currentChat)] = 0;
+    if (!(chatKey(currentChat) in lastMod)) lastMod[chatKey(currentChat)] = 0;
     elMessages.innerHTML = '';
     updateChatHeader();
     pollMessages();
@@ -756,6 +818,7 @@
   function openPrivateChat(u) {
     currentChat = { type: 'private', with: u };
     if (!(chatKey(currentChat) in lastIds)) lastIds[chatKey(currentChat)] = 0;
+    if (!(chatKey(currentChat) in lastMod)) lastMod[chatKey(currentChat)] = 0;
     elMessages.innerHTML = '<div class="empty">Загрузка...</div>';
     updateChatHeader();
     pollMessages();
@@ -779,16 +842,15 @@
     div.dataset.id = m.id;
     const meta = document.createElement('div');
     meta.className = 'meta';
-    const u = userMap()[m.login];
-    meta.appendChild(avatarEl(u || { name: m.name, login: m.login }, 'm-av'));
+    const u = userMap()[m.login] || { login: m.login, name: m.name, is_admin: m.admin, is_owner: m.login === 'admin', role: m.role || (m.admin ? 'admin' : '') };
+    meta.appendChild(avatarEl(u, 'm-av'));
     const name = document.createElement('span');
-    const isOwner = (u && u.is_owner) || m.login === 'admin';
-    const isAdmin = isOwner || (u ? u.is_admin : m.admin);
-    name.className = 'name' + (isOwner ? ' owner' : (isAdmin ? ' admin' : ''));
-    if (!isOwner && !isAdmin) name.style.color = colorFor(m.login);
-    if (isOwner) {
+    const ri = roleInfo(u);
+    name.className = 'name' + (ri ? ' ' + ri.nameCls : '');
+    if (!ri) name.style.color = colorFor(m.login);
+    if (ri) {
       const pref = document.createElement('span');
-      pref.className = 'badge blue'; pref.textContent = 'Владелец';
+      pref.className = ri.cls; pref.textContent = ri.text;
       name.appendChild(pref);
       name.appendChild(document.createTextNode(' ' + m.name));
     } else {
@@ -796,10 +858,18 @@
     }
     const time = document.createElement('span');
     time.className = 'time'; time.textContent = fmtTime(m.time);
+    if (m.edited) {
+      const em = document.createElement('span');
+      em.className = 'edited-mark'; em.textContent = 'изменено';
+      meta.appendChild(em);
+    }
     meta.appendChild(name); meta.appendChild(time);
     const bubble = document.createElement('div');
     bubble.className = 'bubble';
-    if (m.type === 'image') {
+    if (m.deleted) {
+      bubble.textContent = '🚫 Сообщение удалено';
+      bubble.classList.add('deleted');
+    } else if (m.type === 'image') {
       const img = document.createElement('img');
       img.className = 'media-img'; img.src = m.file; img.alt = 'фото';
       bubble.appendChild(img);
@@ -811,28 +881,86 @@
       bubble.textContent = m.text;
     }
     div.appendChild(meta); div.appendChild(bubble);
+
+    if (!m.deleted && (m.login === me.login || me.is_admin)) {
+      const actions = document.createElement('div');
+      actions.className = 'm-actions hidden';
+      if (m.login === me.login && m.type === 'text') {
+        const edit = document.createElement('button');
+        edit.textContent = 'Изменить';
+        edit.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const t = prompt('Новое сообщение:', m.text || '');
+          if (!t || !t.trim()) return;
+          try {
+            const r = await api('/api/messages/edit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: m.id, text: t.trim() }) });
+            msgById[m.id] = r;
+            const el = document.querySelector(`.msg[data-id="${m.id}"]`);
+            if (el) el.replaceWith(makeMsgEl(r));
+          } catch (err) { alert(err); }
+        });
+        actions.appendChild(edit);
+      }
+      const del = document.createElement('button');
+      del.textContent = 'Удалить';
+      del.className = 'danger';
+      del.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        if (!confirm('Удалить сообщение?')) return;
+          try {
+            const r = await api('/api/messages/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: m.id }) });
+            msgById[m.id] = r;
+            const el = document.querySelector(`.msg[data-id="${m.id}"]`);
+            if (el) el.replaceWith(makeMsgEl(r));
+          } catch (err) { alert(err); }
+      });
+      actions.appendChild(del);
+      div.appendChild(actions);
+      div.addEventListener('click', (e) => {
+        if (e.target.closest('video') || e.target.closest('img')) return;
+        e.stopPropagation();
+        if (selectedMsg && selectedMsg !== div) selectedMsg.classList.remove('selected');
+        div.classList.toggle('selected');
+        actions.classList.toggle('hidden', !div.classList.contains('selected'));
+        selectedMsg = div.classList.contains('selected') ? div : null;
+      });
+    }
+
     return div;
   }
 
   function addMessage(m) {
     if (document.querySelector(`.msg[data-id="${m.id}"]`)) return;
-    const empty = document.querySelector('.empty');
+    const empty = document.querySelector('#messages .empty');
     if (empty) empty.remove();
+    msgById[m.id] = m;
     const nearBottom = elMessages.scrollHeight - elMessages.scrollTop - elMessages.clientHeight < 80;
     elMessages.appendChild(makeMsgEl(m));
     if (nearBottom) elMessages.scrollTop = elMessages.scrollHeight;
     if (m.id > lastIds[chatKey(currentChat)]) lastIds[chatKey(currentChat)] = m.id;
   }
 
+  let lastMod = { public: 0 };
+
   async function pollMessages() {
     if (!me) return;
     const key = chatKey(currentChat);
+    const q = 'after=' + (lastIds[key] || 0) + '&mod_after=' + (lastMod[key] || 0);
     const url = currentChat.type === 'public'
-      ? '/api/messages?after=' + (lastIds[key] || 0)
-      : '/api/messages?chat=private&with=' + encodeURIComponent(currentChat.with.login) + '&after=' + (lastIds[key] || 0);
+      ? '/api/messages?' + q
+      : '/api/messages?chat=private&with=' + encodeURIComponent(currentChat.with.login) + '&' + q;
     try {
       const data = await api(url);
-      for (const m of data) addMessage(m);
+      for (const m of data) {
+        if (m.id <= (lastIds[key] || 0)) {
+          const old = document.querySelector(`#messages .msg[data-id="${m.id}"]`);
+          msgById[m.id] = m;
+          if (old) old.replaceWith(makeMsgEl(m));
+        } else {
+          addMessage(m);
+        }
+        if (m.mod_time) lastMod[key] = Math.max(lastMod[key] || 0, m.mod_time);
+      }
     } catch (e) { /* ignore */ }
   }
 
@@ -975,6 +1103,7 @@
   function hideSettings() { elSettingsModal.classList.add('hidden'); }
   setTheme(localStorage.getItem('theme') || 'dark');
   $('settingsBtn').addEventListener('click', showSettings);
+  $('rulesBtn').addEventListener('click', () => window.open('https://matvey-matvey123.github.io/rules/rules.txt', '_blank'));
   $('settingsClose').addEventListener('click', hideSettings);
   $('themeDark').addEventListener('click', () => setTheme('dark'));
   $('themeLight').addEventListener('click', () => setTheme('light'));
@@ -1012,12 +1141,127 @@
     if (adminState.view === 'users') await renderAdminUsers();
     else if (adminState.view === 'chats') await renderAdminUserChats(adminState.user);
     else if (adminState.view === 'conv') await renderAdminConversation(adminState.user, adminState.partner);
+    else if (adminState.view === 'complaints') await renderAdminComplaints();
+  }
+
+  function adminTabs() {
+    const bar = document.createElement('div');
+    bar.className = 'admin-toolbar';
+    const mk = (label, view) => {
+      const b = document.createElement('button');
+      b.className = 'tab ' + (adminState.view === view ? 'active' : '');
+      b.textContent = label;
+      b.addEventListener('click', () => { adminState = { view }; renderAdmin(); });
+      bar.appendChild(b);
+    };
+    mk('Пользователи', 'users');
+    if (canComplaints()) mk('Жалобы', 'complaints');
+    return bar;
+  }
+
+  async function renderAdminComplaints() {
+    let list = [];
+    try { list = await api('/api/admin/complaints'); }
+    catch (e) { elAdminContent.innerHTML = '<div class="admin-empty">' + e + '</div>'; return; }
+    elAdminContent.innerHTML = '';
+    elAdminContent.appendChild(adminTabs());
+    if (!list.length) {
+      const empty = document.createElement('div');
+      empty.className = 'admin-empty'; empty.textContent = 'Жалоб пока нет';
+      elAdminContent.appendChild(empty);
+      return;
+    }
+    for (const c of list) {
+      const row = document.createElement('div');
+      row.className = 'admin-user';
+      row.appendChild(avatarEl({ name: c.target_name, login: c.target, avatar: c.avatar }, 'au-av'));
+      const info = document.createElement('div');
+      info.className = 'au-info';
+      const nm = document.createElement('div');
+      nm.className = 'au-name'; nm.textContent = c.target_name + ' (@' + c.target + ')';
+      const lg = document.createElement('div');
+      lg.className = 'au-login';
+      lg.textContent = 'Жалоба от @' + c.author_name + ' · ' + fmtTime(c.time);
+      info.appendChild(nm); info.appendChild(lg);
+      const txt = document.createElement('div');
+      txt.className = 'cr-last';
+      txt.textContent = (c.chat === 'public' ? 'Общий чат · ' : 'Личный чат · ') + (c.text || '');
+      info.appendChild(txt);
+      const actions = document.createElement('div');
+      actions.className = 'au-actions';
+
+      const jump = document.createElement('button');
+      jump.className = 'btn'; jump.textContent = 'К сообщению';
+      jump.addEventListener('click', () => jumpToMessage(c));
+      actions.appendChild(jump);
+
+      const mute = document.createElement('button');
+      mute.className = 'btn'; mute.textContent = c.target_exists ? 'Замутить' : 'Замутить (нет аккаунта)';
+      mute.addEventListener('click', async () => {
+        const minutes = prompt('Замутить @' + c.target + ' на сколько минут? (1–1440)', '5');
+        const m = parseInt(minutes, 10);
+        if (!m || m < 1) return;
+        try {
+          await api('/api/admin/mute', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: c.target, minutes: m }) });
+          renderAdminComplaints();
+        } catch (err) { alert(err); }
+      });
+      actions.appendChild(mute);
+
+      const done = document.createElement('button');
+      done.className = 'btn green'; done.textContent = 'Готово';
+      done.addEventListener('click', async () => {
+        try {
+          await api('/api/admin/complaints/resolve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: c.id }) });
+          renderAdminComplaints();
+        } catch (err) { alert(err); }
+      });
+      actions.appendChild(done);
+
+      const drop = document.createElement('button');
+      drop.className = 'btn red'; drop.textContent = 'Удалить жалобу';
+      drop.addEventListener('click', async () => {
+        try {
+          await api('/api/admin/complaints/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: c.id }) });
+          renderAdminComplaints();
+        } catch (err) { alert(err); }
+      });
+      actions.appendChild(drop);
+
+      row.appendChild(info); row.appendChild(actions);
+      elAdminContent.appendChild(row);
+    }
+  }
+
+  function jumpToMessage(c) {
+    closeAdmin();
+    if (c.chat === 'public') {
+      currentChat = { type: 'public' };
+      lastIds.public = Math.min(lastIds.public || 0, c.message_id);
+      openPublicChat();
+    } else {
+      const other = c.chat.split(':').pop();
+      const u = userList.find(x => x.login === other) || userList.find(x => x.login === c.target);
+      if (!u) { alert('Пользователь не найден'); return; }
+      currentChat = { type: 'private', with: u };
+      lastIds['private:' + other] = Math.min(lastIds['private:' + other] || 0, c.message_id);
+      openPrivateChat(u);
+    }
+    setTimeout(() => {
+      const el = document.querySelector(`#messages .msg[data-id="${c.message_id}"]`);
+      if (el) { el.scrollIntoView({ block: 'center' }); el.classList.add('selected'); }
+    }, 400);
+    setTimeout(() => {
+      const el = document.querySelector(`#messages .msg[data-id="${c.message_id}"]`);
+      if (el) { el.scrollIntoView({ block: 'center' }); el.classList.add('selected'); }
+    }, 1500);
   }
 
   async function renderAdminUsers() {
     let list = [];
     try { list = await api('/api/admin/users'); } catch (e) { elAdminContent.innerHTML = '<div class="admin-empty">' + e + '</div>'; return; }
     elAdminContent.innerHTML = '';
+    elAdminContent.appendChild(adminTabs());
     const toolbar = document.createElement('div');
     toolbar.className = 'admin-toolbar';
     const search = document.createElement('input');
@@ -1041,10 +1285,11 @@
         const info = document.createElement('div');
         info.className = 'au-info';
         const nm = document.createElement('div');
-        nm.className = 'au-name' + (u.is_owner ? ' owner' : (u.is_admin ? ' admin' : ''));
-        if (u.is_owner) {
+        const ri = roleInfo(u);
+        nm.className = 'au-name' + (ri ? ' ' + ri.nameCls : '');
+        if (ri) {
           const pref = document.createElement('span');
-          pref.className = 'badge blue'; pref.textContent = 'Владелец';
+          pref.className = ri.cls; pref.textContent = ri.text;
           nm.appendChild(pref);
           nm.appendChild(document.createTextNode(' ' + u.name));
         } else {
@@ -1067,7 +1312,7 @@
         viewBtn.addEventListener('click', () => { adminState = { view: 'chats', user: u.login }; renderAdmin(); });
         actions.appendChild(viewBtn);
 
-        if (u.login !== me.login && !u.is_owner) {
+        if (u.login !== me.login && !u.is_owner && canMute()) {
           if (u.muted) {
             const um = document.createElement('button');
             um.className = 'btn green'; um.textContent = 'Снять мут';
@@ -1088,14 +1333,25 @@
             });
             actions.appendChild(mu);
           }
+        }
+        if (u.login !== me.login && !u.is_owner && canPromote()) {
           if (!u.is_admin) {
             const p = document.createElement('button');
-            p.className = 'btn green'; p.textContent = 'Сделать админом';
+            p.className = 'btn green'; p.textContent = 'Младший админ';
             p.addEventListener('click', async () => {
-              try { await api('/api/admin/promote', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: u.login }) }); renderAdmin(); }
+              try { await api('/api/admin/promote', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: u.login, role: 'junior_admin' }) }); renderAdmin(); }
               catch (err) { alert(err); }
             });
             actions.appendChild(p);
+            if (me.is_owner) {
+              const ps = document.createElement('button');
+              ps.className = 'btn green'; ps.textContent = 'Старший админ';
+              ps.addEventListener('click', async () => {
+                try { await api('/api/admin/promote', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: u.login, role: 'senior_admin' }) }); renderAdmin(); }
+                catch (err) { alert(err); }
+              });
+              actions.appendChild(ps);
+            }
           } else {
             const d = document.createElement('button');
             d.className = 'btn'; d.textContent = 'Разжаловать';
@@ -1105,6 +1361,8 @@
             });
             actions.appendChild(d);
           }
+        }
+        if (u.login !== me.login && !u.is_owner && canDelete()) {
           const del = document.createElement('button');
           del.className = 'btn red'; del.textContent = 'Удалить';
           del.addEventListener('click', async () => {

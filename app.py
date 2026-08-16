@@ -12,6 +12,7 @@ from werkzeug.utils import secure_filename
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 USERS_FILE = os.path.join(APP_DIR, "users.json")
 MESSAGES_FILE = os.path.join(APP_DIR, "messages.json")
+COMPLAINTS_FILE = os.path.join(APP_DIR, "complaints.json")
 SETTINGS_FILE = os.path.join(APP_DIR, "settings.json")
 UPLOAD_DIR = os.path.join(APP_DIR, "uploads")
 AVATAR_DIR = os.path.join(UPLOAD_DIR, "avatars")
@@ -67,6 +68,21 @@ def load_messages():
 def save_messages(msgs):
     with open(MESSAGES_FILE, "w", encoding="utf-8") as f:
         json.dump(msgs, f, ensure_ascii=False, indent=2)
+
+
+def load_complaints():
+    if not os.path.exists(COMPLAINTS_FILE):
+        return []
+    try:
+        with open(COMPLAINTS_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return []
+
+
+def save_complaints(comps):
+    with open(COMPLAINTS_FILE, "w", encoding="utf-8") as f:
+        json.dump(comps, f, ensure_ascii=False, indent=2)
 
 
 def load_settings():
@@ -151,10 +167,35 @@ def is_owner_login(login):
     return (login or "").strip().lower() == OWNER_LOGIN
 
 
+def user_role(u):
+    if is_owner_login(u.get("login", "")):
+        return "owner"
+    role = u.get("role", "") or ""
+    if role in ("senior_admin", "junior_admin"):
+        return role
+    return "admin" if u.get("is_admin") else ""
+
+
 def can_manage_target(requester, target_login):
     if is_owner_login(target_login):
         return requester["login"].lower() == OWNER_LOGIN
     return True
+
+
+def can_manage_roles(requester):
+    return user_role(requester) in ("owner", "senior_admin")
+
+
+def can_handle_complaints(requester):
+    return user_role(requester) in ("owner", "senior_admin")
+
+
+def can_mute(requester):
+    return user_role(requester) in ("owner", "senior_admin")
+
+
+def can_delete_account(requester):
+    return user_role(requester) == "owner"
 
 
 def public_info(u):
@@ -165,6 +206,7 @@ def public_info(u):
         "online": is_online(u["login"]),
         "is_admin": u.get("is_admin", False),
         "is_owner": is_owner_login(u["login"]),
+        "role": user_role(u),
         "muted": bool(u.get("muted_until") and u["muted_until"] > time.time()),
         "muted_until": u.get("muted_until"),
     }
@@ -227,7 +269,7 @@ def register():
         save_users(users)
     session["login"] = login
     last_seen[login] = time.time()
-    return jsonify({"ok": True, "login": login, "name": name, "is_admin": user["is_admin"]})
+    return jsonify({"ok": True, "login": login, "name": name, "is_admin": user["is_admin"], "role": user_role(user)})
 
 
 @app.route("/api/login", methods=["POST"])
@@ -243,6 +285,7 @@ def login():
     return jsonify({
         "ok": True, "login": user["login"], "name": user["name"],
         "is_admin": user.get("is_admin", False), "is_owner": is_owner_login(user["login"]),
+        "role": user_role(user),
         "avatar": user.get("avatar", ""),
     })
 
@@ -270,6 +313,7 @@ def me():
         "name": user["name"],
         "is_admin": user.get("is_admin", False),
         "is_owner": is_owner_login(user["login"]),
+        "role": user_role(user),
         "avatar": user.get("avatar", ""),
         "blocked": user.get("blocked", []),
         "hidden": user.get("hidden", []),
@@ -401,11 +445,12 @@ def get_messages():
     touch(user)
     chat = request.args.get("chat", "public")
     after = request.args.get("after", default=0, type=int)
+    mod_after = request.args.get("mod_after", default=0, type=int)
     with lock:
         msgs = load_messages()
         if chat == "public":
             blocked = [b.lower() for b in user.get("blocked", [])]
-            result = [m for m in msgs if m["chat"] == "public" and m["id"] > after and m["login"].lower() not in blocked]
+            base = [m for m in msgs if m["chat"] == "public" and m["login"].lower() not in blocked]
         else:
             with_ = request.args.get("with", "").strip()
             if not with_:
@@ -413,7 +458,10 @@ def get_messages():
             if not find_user(with_):
                 return jsonify({"error": "Пользователь не найден"}), 404
             key = chat_key(user["login"], with_)
-            result = [m for m in msgs if m["chat"] == key and m["id"] > after]
+            base = [m for m in msgs if m["chat"] == key]
+        result = [m for m in base if m["id"] > after]
+        if mod_after:
+            result += [m for m in base if m["id"] <= after and m.get("mod_time", 0) >= mod_after]
         return jsonify(result)
 
 
@@ -451,6 +499,7 @@ def post_message():
             "login": user["login"],
             "name": user["name"],
             "admin": user.get("is_admin", False),
+            "role": user_role(user),
             "type": "text",
             "text": text,
             "time": int(time.time()),
@@ -499,6 +548,7 @@ def upload_message():
             "login": user["login"],
             "name": user["name"],
             "admin": user.get("is_admin", False),
+            "role": user_role(user),
             "type": kind,
             "time": int(time.time()),
         }
@@ -509,6 +559,62 @@ def upload_message():
         msgs.append(msg)
         save_messages(msgs)
         return jsonify(msg)
+
+
+@app.route("/api/messages/edit", methods=["POST"])
+def edit_message():
+    user = current_user()
+    if not user:
+        return jsonify({"error": "Войдите в аккаунт"}), 401
+    touch(user)
+    data = request.get_json(silent=True) or {}
+    try:
+        mid = int(data.get("id", 0))
+    except (TypeError, ValueError):
+        return jsonify({"error": "Некорректный id"}), 400
+    text = str(data.get("text") or "").strip()[:1000]
+    if not text:
+        return jsonify({"error": "Сообщение не может быть пустым"}), 400
+    with lock:
+        msgs = load_messages()
+        for m in msgs:
+            if m["id"] == mid:
+                if m["login"].lower() != user["login"].lower() and not user.get("is_admin"):
+                    return jsonify({"error": "Можно редактировать только свои сообщения"}), 403
+                if m.get("deleted"):
+                    return jsonify({"error": "Сообщение удалено"}), 400
+                m["text"] = text
+                m["edited"] = True
+                m["edited_time"] = int(time.time())
+                m["mod_time"] = m["edited_time"]
+                save_messages(msgs)
+                return jsonify(m)
+        return jsonify({"error": "Сообщение не найдено"}), 404
+
+
+@app.route("/api/messages/delete", methods=["POST"])
+def delete_message():
+    user = current_user()
+    if not user:
+        return jsonify({"error": "Войдите в аккаунт"}), 401
+    touch(user)
+    data = request.get_json(silent=True) or {}
+    try:
+        mid = int(data.get("id", 0))
+    except (TypeError, ValueError):
+        return jsonify({"error": "Некорректный id"}), 400
+    with lock:
+        msgs = load_messages()
+        for m in msgs:
+            if m["id"] == mid:
+                if m["login"].lower() != user["login"].lower() and not user.get("is_admin"):
+                    return jsonify({"error": "Можно удалять только свои сообщения"}), 403
+                m["deleted"] = True
+                m["deleted_time"] = int(time.time())
+                m["mod_time"] = m["deleted_time"]
+                save_messages(msgs)
+                return jsonify(m)
+        return jsonify({"error": "Сообщение не найдено"}), 404
 
 
 # ---------- Profile ----------
@@ -609,9 +715,10 @@ def set_title():
 
 @app.route("/api/admin/status")
 def admin_status():
-    if current_admin():
-        return jsonify({"is_admin": True})
-    return jsonify({"is_admin": False})
+    user = current_admin()
+    if user:
+        return jsonify({"is_admin": True, "role": user_role(user)})
+    return jsonify({"is_admin": False, "role": ""})
 
 
 @app.route("/api/admin/users")
@@ -634,18 +741,26 @@ def admin_promote():
     admin, err = require_admin()
     if err:
         return err
+    if not can_manage_roles(admin):
+        return jsonify({"error": "Недостаточно прав"}), 403
     data = request.get_json(silent=True) or {}
     login = str(data.get("login", "")).strip().lower()
+    role = str(data.get("role", "junior_admin")).strip()
+    if role not in ("junior_admin", "senior_admin"):
+        return jsonify({"error": "Недопустимая роль"}), 400
     if not login:
         return jsonify({"error": "Укажите логин"}), 400
     if not can_manage_target(admin, login):
         return jsonify({"error": "Нельзя менять роль владельца"}), 403
+    if user_role(admin) == "senior_admin" and role == "senior_admin":
+        return jsonify({"error": "Назначать старших админов может только владелец"}), 403
     with lock:
         users = load_users()
         found = False
         for u in users:
             if u["login"].lower() == login:
                 u["is_admin"] = True
+                u["role"] = role
                 found = True
         if not found:
             return jsonify({"error": "Пользователь не найден"}), 404
@@ -658,6 +773,8 @@ def admin_demote():
     admin, err = require_admin()
     if err:
         return err
+    if not can_manage_roles(admin):
+        return jsonify({"error": "Недостаточно прав"}), 403
     data = request.get_json(silent=True) or {}
     login = str(data.get("login", "")).strip().lower()
     if login == admin["login"].lower():
@@ -670,6 +787,7 @@ def admin_demote():
         for u in users:
             if u["login"].lower() == login:
                 u["is_admin"] = False
+                u.pop("role", None)
                 found = True
         if not found:
             return jsonify({"error": "Пользователь не найден"}), 404
@@ -682,6 +800,8 @@ def admin_delete():
     admin, err = require_admin()
     if err:
         return err
+    if not can_delete_account(admin):
+        return jsonify({"error": "Удалять аккаунты может только владелец"}), 403
     data = request.get_json(silent=True) or {}
     login = str(data.get("login", "")).strip().lower()
     if login == admin["login"].lower():
@@ -703,6 +823,10 @@ def admin_delete():
         msgs = [m for m in msgs if m["login"].lower() != login]
         save_messages(msgs)
 
+        comps = load_complaints()
+        comps = [c for c in comps if c.get("target", "").lower() != login]
+        save_complaints(comps)
+
         last_seen.pop(login, None)
         for old in glob.glob(os.path.join(AVATAR_DIR, secure_filename(login) + ".*")):
             try:
@@ -717,6 +841,8 @@ def admin_mute():
     admin, err = require_admin()
     if err:
         return err
+    if not can_mute(admin):
+        return jsonify({"error": "Недостаточно прав"}), 403
     data = request.get_json(silent=True) or {}
     login = str(data.get("login", "")).strip().lower()
     try:
@@ -743,6 +869,8 @@ def admin_unmute():
     admin, err = require_admin()
     if err:
         return err
+    if not can_mute(admin):
+        return jsonify({"error": "Недостаточно прав"}), 403
     data = request.get_json(silent=True) or {}
     login = str(data.get("login", "")).strip().lower()
     with lock:
@@ -755,6 +883,114 @@ def admin_unmute():
         if not found:
             return jsonify({"error": "Пользователь не найден"}), 404
         save_users(users)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/complaints", methods=["POST"])
+def add_complaint():
+    user = current_user()
+    if not user:
+        return jsonify({"error": "Войдите в аккаунт"}), 401
+    touch(user)
+    data = request.get_json(silent=True) or {}
+    try:
+        mid = int(data.get("message_id", 0))
+    except (TypeError, ValueError):
+        return jsonify({"error": "Некорректный id сообщения"}), 400
+    if mid <= 0:
+        return jsonify({"error": "Укажите id сообщения"}), 400
+    with lock:
+        msgs = load_messages()
+        msg = next((m for m in msgs if m["id"] == mid), None)
+        if not msg:
+            return jsonify({"error": "Сообщение не найдено"}), 404
+        target_login = msg["login"].lower()
+        if target_login == user["login"].lower():
+            return jsonify({"error": "Нельзя пожаловаться на своё сообщение"}), 400
+        comps = load_complaints()
+        existing = [c for c in comps if c.get("target") == target_login and c.get("author") == user["login"].lower() and not c.get("resolved")]
+        if existing:
+            return jsonify({"error": "Вы уже отправляли жалобу на этого пользователя"}), 400
+        comp = {
+            "id": max([c["id"] for c in comps], default=0) + 1,
+            "message_id": mid,
+            "chat": msg["chat"],
+            "target": target_login,
+            "target_name": msg["name"],
+            "author": user["login"].lower(),
+            "text": msg.get("text") or msg.get("file") or "",
+            "time": int(time.time()),
+            "resolved": False,
+        }
+        comps.append(comp)
+        save_complaints(comps)
+    return jsonify({"ok": True, "id": comp["id"]})
+
+
+@app.route("/api/admin/complaints")
+def admin_complaints():
+    _, err = require_admin()
+    if err:
+        return err
+    if not can_handle_complaints(current_admin()):
+        return jsonify({"error": "Недостаточно прав"}), 403
+    comps = [c for c in load_complaints() if not c.get("resolved")]
+    result = []
+    for c in comps:
+        item = dict(c)
+        target = find_user(c.get("target", ""))
+        author = find_user(c.get("author", ""))
+        item["target_exists"] = bool(target)
+        item["author_name"] = author["name"] if author else c.get("author", "")
+        item["author_login"] = c.get("author", "")
+        item["avatar"] = target.get("avatar", "") if target else ""
+        result.append(item)
+    result.sort(key=lambda x: -x["time"])
+    return jsonify(result)
+
+
+@app.route("/api/admin/complaints/resolve", methods=["POST"])
+def resolve_complaint():
+    _, err = require_admin()
+    if err:
+        return err
+    if not can_handle_complaints(current_admin()):
+        return jsonify({"error": "Недостаточно прав"}), 403
+    data = request.get_json(silent=True) or {}
+    try:
+        cid = int(data.get("id", 0))
+    except (TypeError, ValueError):
+        return jsonify({"error": "Некорректный id"}), 400
+    with lock:
+        comps = load_complaints()
+        for c in comps:
+            if c["id"] == cid:
+                c["resolved"] = True
+                c["resolved_by"] = current_admin()["login"]
+                save_complaints(comps)
+                return jsonify({"ok": True})
+        return jsonify({"error": "Жалоба не найдена"}), 404
+
+
+@app.route("/api/admin/complaints/delete", methods=["POST"])
+def delete_complaint():
+    _, err = require_admin()
+    if err:
+        return err
+    if not can_handle_complaints(current_admin()):
+        return jsonify({"error": "Недостаточно прав"}), 403
+    data = request.get_json(silent=True) or {}
+    try:
+        cid = int(data.get("id", 0))
+    except (TypeError, ValueError):
+        return jsonify({"error": "Некорректный id"}), 400
+    with lock:
+        comps = load_complaints()
+        before = len(comps)
+        comps = [c for c in comps if c["id"] != cid]
+        if len(comps) == before:
+            return jsonify({"error": "Жалоба не найдена"}), 404
+        save_complaints(comps)
     return jsonify({"ok": True})
 
 
