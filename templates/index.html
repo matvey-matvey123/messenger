@@ -19,6 +19,7 @@
     --green: #2ecc71;
     --gray: #5a6172;
     --red: #ff5f56;
+    --red-dim: #b3403a;
   }
   body {
     font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
@@ -32,27 +33,16 @@
   button { font-family: inherit; }
 
   /* ---------- Auth screen ---------- */
-  .auth-screen {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 20px;
-  }
+  .auth-screen { flex: 1; display: flex; align-items: center; justify-content: center; padding: 20px; }
   .auth-card {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 32px;
-    width: 100%;
-    max-width: 380px;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 16px;
+    padding: 32px; width: 100%; max-width: 380px;
   }
   .auth-logo {
     width: 52px; height: 52px; border-radius: 14px;
     background: linear-gradient(135deg, var(--accent), #7a5bff);
     display: flex; align-items: center; justify-content: center;
-    font-weight: 700; font-size: 26px; color: #fff;
-    margin: 0 auto 14px;
+    font-weight: 700; font-size: 26px; color: #fff; margin: 0 auto 14px;
   }
   .auth-card h1 { text-align: center; font-size: 22px; margin-bottom: 22px; }
   .tabs { display: flex; background: var(--bg); border-radius: 10px; padding: 4px; margin-bottom: 18px; }
@@ -77,9 +67,8 @@
   /* ---------- Chat screen ---------- */
   .chat-screen { flex: 1; display: flex; flex-direction: column; min-height: 0; }
   header {
-    display: flex; align-items: center; gap: 12px;
-    padding: 12px 20px; background: var(--panel);
-    border-bottom: 1px solid var(--border); flex: 0 0 auto;
+    display: flex; align-items: center; gap: 12px; padding: 12px 20px;
+    background: var(--panel); border-bottom: 1px solid var(--border); flex: 0 0 auto;
   }
   header .logo {
     width: 36px; height: 36px; border-radius: 10px;
@@ -90,11 +79,15 @@
   header h1 { font-size: 18px; font-weight: 600; }
   header .you { margin-left: auto; font-size: 14px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
   #yourName { color: var(--text); font-weight: 600; }
-  #logoutBtn {
+  .hbtn {
     background: none; border: 1px solid var(--border); color: var(--muted);
     padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 13px;
   }
+  .hbtn:hover { color: var(--text); border-color: var(--accent); }
   #logoutBtn:hover { color: var(--red); border-color: var(--red); }
+  #adminBtn { color: var(--red); border-color: var(--red-dim); }
+  #adminBtn:hover { background: var(--red-dim); color: #fff; }
+
   .main { flex: 1; display: flex; min-height: 0; }
 
   .sidebar {
@@ -110,12 +103,10 @@
     border-radius: 10px; color: var(--text); padding: 10px 12px; font-size: 14px; outline: none;
   }
   #search:focus { border-color: var(--accent); }
-  .stats {
-    display: flex; gap: 6px; padding: 0 12px 12px; flex-wrap: wrap;
-  }
+  .stats { display: flex; gap: 6px; padding: 0 12px 12px; }
   .stat {
     flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: 10px;
-    padding: 8px; text-align: center; min-width: 74px;
+    padding: 8px; text-align: center;
   }
   .stat .num { font-size: 18px; font-weight: 700; }
   .stat .lbl { font-size: 11px; color: var(--muted); }
@@ -124,17 +115,36 @@
   .user-list { flex: 1; overflow-y: auto; padding: 0 8px 12px; }
   .user-item {
     display: flex; align-items: center; gap: 10px; padding: 9px 10px;
-    border-radius: 10px; cursor: pointer;
+    border-radius: 10px; cursor: pointer; width: 100%; border: none; background: none; color: var(--text);
+    text-align: left;
   }
   .user-item:hover { background: var(--bg); }
+  .user-item.hidden-user { opacity: .45; }
   .user-item .dot { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 10px; }
   .user-item .dot.on { background: var(--green); box-shadow: 0 0 6px var(--green); }
   .user-item .dot.off { background: var(--gray); }
-  .user-item .u-info { min-width: 0; }
+  .user-item .u-info { min-width: 0; flex: 1; }
   .user-item .u-name { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .user-item .u-login { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .user-item.me { opacity: .7; }
+  .u-name.admin { color: var(--red) !important; }
+  .badge {
+    font-size: 9px; font-weight: 700; color: #fff; background: var(--red-dim);
+    padding: 1px 5px; border-radius: 6px; letter-spacing: .04em; flex: 0 0 auto;
+  }
   .user-list .empty { color: var(--muted); font-size: 13px; padding: 12px; text-align: center; }
+  .hidden-title { font-size: 11px; color: var(--muted); padding: 14px 12px 4px; font-weight: 700; }
+
+  .chat-col { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .chat-header {
+    padding: 10px 20px; background: var(--panel); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 10px; flex: 0 0 auto;
+  }
+  .chat-header .ct-title { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .chat-header .ct-title .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .chat-header .ct-title .dot.on { background: var(--green); }
+  .chat-header .ct-title .dot.off { background: var(--gray); }
+  .blocked-notice { font-size: 13px; color: var(--red); }
 
   #messages {
     flex: 1; overflow-y: auto; padding: 20px;
@@ -152,6 +162,7 @@
   .msg.other { align-self: flex-start; align-items: flex-start; }
   .msg.other .bubble { border-bottom-left-radius: 4px; }
   .msg .name { font-weight: 600; font-size: 13px; }
+  .msg .name.admin { color: var(--red) !important; }
   .msg .time { font-size: 11px; }
   .empty { margin: auto; color: var(--muted); text-align: center; font-size: 14px; padding: 20px; }
 
@@ -165,16 +176,93 @@
     font-family: inherit; max-height: 140px;
   }
   #input:focus { border-color: var(--accent); }
+  #input:disabled { opacity: .5; }
   #send {
     background: var(--accent); border: none; color: #fff; border-radius: 12px;
     padding: 0 22px; font-size: 15px; font-weight: 600; cursor: pointer;
   }
   #send:hover { background: var(--accent-dark); }
   #send:disabled { opacity: 0.5; cursor: default; }
+
+  /* ---------- Context menu ---------- */
+  #ctxMenu {
+    position: fixed; z-index: 300; background: var(--panel); border: 1px solid var(--border);
+    border-radius: 12px; padding: 6px; box-shadow: 0 10px 30px rgba(0,0,0,.5);
+    min-width: 210px;
+  }
+  .ctx-item {
+    display: block; width: 100%; text-align: left; padding: 9px 12px; border: none;
+    background: none; color: var(--text); border-radius: 8px; font-size: 14px; cursor: pointer;
+  }
+  .ctx-item:hover { background: var(--bg); }
+  .ctx-item.danger { color: var(--red); }
+
+  /* ---------- Admin panel ---------- */
+  .overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.65); z-index: 400;
+    display: flex; align-items: center; justify-content: center; padding: 20px;
+  }
+  .admin-box {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 16px;
+    width: 100%; max-width: 780px; height: min(640px, 90vh);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .admin-box > header {
+    padding: 14px 20px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 12px;
+  }
+  .admin-box > header h2 { font-size: 17px; color: var(--red); }
+  #adminClose { margin-left: auto; background: none; border: none; color: var(--muted); font-size: 22px; cursor: pointer; }
+  #adminClose:hover { color: var(--red); }
+  .admin-content { flex: 1; overflow-y: auto; padding: 16px; }
+  .admin-toolbar { display: flex; gap: 10px; margin-bottom: 14px; align-items: center; }
+  #adminSearch {
+    flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: 10px;
+    color: var(--text); padding: 10px 12px; font-size: 14px; outline: none;
+  }
+  #adminSearch:focus { border-color: var(--accent); }
+  .back-btn {
+    background: none; border: 1px solid var(--border); color: var(--muted);
+    padding: 8px 14px; border-radius: 8px; cursor: pointer; font-size: 13px;
+  }
+  .back-btn:hover { color: var(--text); border-color: var(--accent); }
+  .admin-user {
+    display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+    border: 1px solid var(--border); border-radius: 12px; margin-bottom: 8px;
+  }
+  .admin-user .dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 9px; }
+  .admin-user .dot.on { background: var(--green); }
+  .admin-user .dot.off { background: var(--gray); }
+  .admin-user .au-info { min-width: 0; flex: 1; }
+  .admin-user .au-name { font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .admin-user .au-login { font-size: 12px; color: var(--muted); }
+  .au-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .btn {
+    background: var(--bg); border: 1px solid var(--border); color: var(--text);
+    border-radius: 8px; padding: 6px 10px; font-size: 12px; cursor: pointer;
+  }
+  .btn:hover { border-color: var(--accent); }
+  .btn.green { color: var(--green); border-color: var(--green); }
+  .btn.green:hover { background: var(--green); color: #fff; }
+  .btn.red { color: var(--red); border-color: var(--red-dim); }
+  .btn.red:hover { background: var(--red-dim); color: #fff; }
+  .chat-row {
+    display: block; width: 100%; text-align: left; padding: 12px; margin-bottom: 8px;
+    border: 1px solid var(--border); border-radius: 12px; background: none; color: var(--text); cursor: pointer;
+  }
+  .chat-row:hover { border-color: var(--accent); background: var(--bg); }
+  .chat-row .cr-head { display: flex; align-items: center; gap: 8px; }
+  .chat-row .cr-name { font-weight: 600; font-size: 14px; }
+  .chat-row .cr-login { font-size: 12px; color: var(--muted); }
+  .chat-row .cr-last { font-size: 13px; color: var(--muted); margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .admin-empty { color: var(--muted); text-align: center; padding: 30px; }
+  .conv { display: flex; flex-direction: column; gap: 10px; }
+  .conv .msg { max-width: 80%; }
+
   ::-webkit-scrollbar { width: 8px; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
   @media (max-width: 700px) {
-    .sidebar { width: 200px; flex-basis: 200px; }
+    .sidebar { width: 190px; flex-basis: 190px; }
     .msg { max-width: 85%; }
     header h1 { font-size: 16px; }
   }
@@ -190,14 +278,12 @@
         <button id="tabLogin" class="tab active">Вход</button>
         <button id="tabRegister" class="tab">Регистрация</button>
       </div>
-
       <form id="loginForm" class="auth-form">
         <input id="loginLogin" placeholder="Логин" autocomplete="username">
         <input id="loginPassword" type="password" placeholder="Пароль" autocomplete="current-password">
         <div id="loginError" class="auth-error"></div>
         <button type="submit">Войти</button>
       </form>
-
       <form id="registerForm" class="auth-form hidden">
         <input id="regName" placeholder="Имя" autocomplete="name">
         <input id="regLogin" placeholder="Логин" autocomplete="username">
@@ -215,7 +301,8 @@
       <h1>Мессенджер</h1>
       <div class="you">
         Вы: <span id="yourName">...</span>
-        <button id="logoutBtn">Выйти</button>
+        <button id="adminBtn" class="hbtn hidden">Админ-панель</button>
+        <button id="logoutBtn" class="hbtn">Выйти</button>
       </div>
     </header>
 
@@ -231,8 +318,15 @@
         <div class="user-list" id="userList"></div>
       </aside>
 
-      <div id="messages">
-        <div class="empty">Напишите первым!</div>
+      <div class="chat-col">
+        <div class="chat-header">
+          <button id="backBtn" class="back-btn hidden">← Общий чат</button>
+          <div class="ct-title"><span class="dot" id="chatDot"></span><span id="chatTitle">Общий чат</span></div>
+          <span id="blockedNotice" class="blocked-notice hidden"></span>
+        </div>
+        <div id="messages">
+          <div class="empty">Напишите первым!</div>
+        </div>
       </div>
     </div>
 
@@ -240,6 +334,20 @@
       <textarea id="input" rows="1" placeholder="Введите сообщение..." maxlength="1000"></textarea>
       <button id="send" disabled>Отправить</button>
     </footer>
+  </div>
+
+  <!-- Context menu -->
+  <div id="ctxMenu" class="hidden"></div>
+
+  <!-- Admin panel -->
+  <div id="adminPanel" class="overlay hidden">
+    <div class="admin-box">
+      <header>
+        <h2>Админ-панель</h2>
+        <button id="adminClose">×</button>
+      </header>
+      <div class="admin-content" id="adminContent"></div>
+    </div>
   </div>
 
 <script>
@@ -256,9 +364,18 @@
   const elStatOnline = $('statOnline');
   const elStatOffline = $('statOffline');
   const elStatTotal = $('statTotal');
+  const elCtxMenu = $('ctxMenu');
+  const elAdminPanel = $('adminPanel');
+  const elAdminContent = $('adminContent');
+  const elChatTitle = $('chatTitle');
+  const elChatDot = $('chatDot');
+  const elBackBtn = $('backBtn');
+  const elBlockedNotice = $('blockedNotice');
 
   let me = null;
-  let lastId = 0;
+  let users = [];
+  let currentChat = { type: 'public' };
+  let lastIds = { public: 0 };
   let pending = false;
 
   const colorFor = (name) => {
@@ -270,14 +387,7 @@
     const d = new Date(t * 1000);
     return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
   };
-
-  function showAuth() { elAuth.classList.remove('hidden'); elChat.classList.add('hidden'); }
-  function showChat() {
-    elAuth.classList.add('hidden');
-    elChat.classList.remove('hidden');
-    elYourName.textContent = me.name + ' (' + me.login + ')';
-    elInput.focus();
-  }
+  const chatKey = (c) => c.type === 'public' ? 'public' : 'private:' + c.with.login.toLowerCase();
 
   async function api(url, opts) {
     const r = await fetch(url, opts);
@@ -288,11 +398,20 @@
   }
 
   // ---------- Auth ----------
+  function showAuth() { elAuth.classList.remove('hidden'); elChat.classList.add('hidden'); }
+  function showChat() {
+    elAuth.classList.add('hidden');
+    elChat.classList.remove('hidden');
+    elYourName.textContent = me.name + ' (' + me.login + ')';
+    $('adminBtn').classList.toggle('hidden', !me.is_admin);
+    elInput.focus();
+  }
+
   async function checkMe() {
     try {
       const data = await api('/api/me');
       if (data.authenticated) {
-        me = { login: data.login, name: data.name };
+        me = { login: data.login, name: data.name, is_admin: data.is_admin };
         showChat();
       } else {
         showAuth();
@@ -310,12 +429,10 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ login: $('loginLogin').value.trim(), password: $('loginPassword').value })
       });
-      me = { login: data.login, name: data.name };
+      me = { login: data.login, name: data.name, is_admin: data.is_admin };
       $('loginPassword').value = '';
       showChat();
-    } catch (msg) {
-      err.textContent = msg;
-    }
+    } catch (msg) { err.textContent = msg; }
   }
 
   async function doRegister(e) {
@@ -332,19 +449,21 @@
           password: $('regPassword').value
         })
       });
-      me = { login: data.login, name: data.name };
+      me = { login: data.login, name: data.name, is_admin: data.is_admin };
       $('regName').value = ''; $('regLogin').value = ''; $('regPassword').value = '';
       showChat();
-    } catch (msg) {
-      err.textContent = msg;
-    }
+    } catch (msg) { err.textContent = msg; }
   }
 
   async function doLogout() {
     try { await api('/api/logout', { method: 'POST' }); } catch (e) { /* ignore */ }
     me = null;
-    lastId = 0;
+    users = [];
+    currentChat = { type: 'public' };
+    lastIds = { public: 0 };
     elMessages.innerHTML = '<div class="empty">Напишите первым!</div>';
+    elCtxMenu.classList.add('hidden');
+    closeAdmin();
     showAuth();
   }
 
@@ -360,113 +479,278 @@
     $('registerForm').classList.remove('hidden'); $('loginForm').classList.add('hidden');
   });
 
-  // ---------- User list ----------
-  function renderUsers(users) {
+  // ---------- Sidebar / user list ----------
+  function renderUsers() {
     const q = elSearch.value.trim().toLowerCase();
-    const filtered = users.filter(u => u.login.toLowerCase().includes(q));
+    const visible = users.filter(u => !u.hidden);
+    const hiddenUsers = users.filter(u => u.hidden);
+    const filtered = visible.filter(u => u.login.toLowerCase().includes(q));
+    const filteredHidden = hiddenUsers.filter(u => u.login.toLowerCase().includes(q));
     const online = users.filter(u => u.online).length;
 
     elStatOnline.textContent = online;
     elStatOffline.textContent = users.length - online;
     elStatTotal.textContent = users.length;
 
+    const sortList = (arr) => arr.slice().sort((a, b) => (b.online - a.online) || a.login.localeCompare(b.login));
+    const list = sortList(filtered).concat(sortList(filteredHidden));
+
     elUserList.innerHTML = '';
-    if (!filtered.length) {
-      const div = document.createElement('div');
-      div.className = 'empty';
-      div.textContent = q ? 'Никого не найдено' : 'Пока нет пользователей';
-      elUserList.appendChild(div);
+    if (!users.length) {
+      elUserList.innerHTML = '<div class="empty">Пока нет пользователей</div>';
       return;
     }
-    for (const u of filtered) {
-      const item = document.createElement('div');
-      item.className = 'user-item' + (u.login === me.login ? ' me' : '');
+    if (!list.length) {
+      elUserList.innerHTML = '<div class="empty">Никого не найдено</div>';
+      return;
+    }
+
+    const sep = document.createElement('div');
+    sep.className = 'hidden-title';
+    sep.textContent = 'Скрытые';
+    let hiddenRendered = false;
+
+    for (const u of list) {
+      if (u.hidden && !hiddenRendered) {
+        elUserList.appendChild(sep.cloneNode(true));
+        hiddenRendered = true;
+      }
+      const btn = document.createElement('button');
+      btn.className = 'user-item' + (u.hidden ? ' hidden-user' : '') + (u.login === me.login ? ' me' : '');
       const dot = document.createElement('span');
       dot.className = 'dot ' + (u.online ? 'on' : 'off');
       const info = document.createElement('div');
       info.className = 'u-info';
       const nm = document.createElement('div');
-      nm.className = 'u-name';
-      nm.style.color = colorFor(u.login);
+      nm.className = 'u-name' + (u.is_admin ? ' admin' : '');
+      if (!u.is_admin) nm.style.color = colorFor(u.login);
       nm.textContent = u.name;
       const lg = document.createElement('div');
       lg.className = 'u-login';
       lg.textContent = '@' + u.login;
       info.appendChild(nm);
       info.appendChild(lg);
-      item.appendChild(dot);
-      item.appendChild(info);
-      elUserList.appendChild(item);
+      btn.appendChild(dot);
+      btn.appendChild(info);
+      if (u.is_admin) {
+        const b = document.createElement('span');
+        b.className = 'badge';
+        b.textContent = 'ADMIN';
+        btn.appendChild(b);
+      }
+      btn.addEventListener('click', (e) => showUserMenu(e, u));
+      elUserList.appendChild(btn);
     }
   }
 
-  async function pollUsers() {
-    if (!me) return;
-    try {
-      const users = await api('/api/users');
-      renderUsers(users);
-    } catch (e) { /* ignore */ }
+  // ---------- Context menu ----------
+  function showUserMenu(e, u) {
+    e.stopPropagation();
+    elCtxMenu.innerHTML = '';
+    const items = [];
+
+    items.push({ label: 'Начать личный чат', fn: () => openPrivateChat(u) });
+
+    if (u.login !== me.login) {
+      items.push({ label: u.iBlocked ? 'Разблокировать' : 'Заблокировать', fn: async () => {
+        try {
+          await api('/api/users/' + (u.iBlocked ? 'unblock' : 'block'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ login: u.login })
+          });
+          if (u.iBlocked) u.iBlocked = false; else u.iBlocked = true;
+          renderUsers();
+        } catch (err) { alert(err); }
+      }});
+      items.push({ label: u.hidden ? 'Показать в списке' : 'Скрыть из списка', fn: async () => {
+        try {
+          await api('/api/users/' + (u.hidden ? 'unhide' : 'hide'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ login: u.login })
+          });
+          u.hidden = !u.hidden;
+          renderUsers();
+        } catch (err) { alert(err); }
+      }});
+    }
+
+    if (me.is_admin) {
+      if (u.login !== me.login && !u.is_admin) {
+        items.push({ label: 'Сделать админом', fn: async () => {
+          try {
+            await api('/api/admin/promote', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: u.login }) });
+            u.is_admin = true;
+            renderUsers();
+          } catch (err) { alert(err); }
+        }});
+      }
+      if (u.login !== me.login && u.is_admin) {
+        items.push({ label: 'Разжаловать', fn: async () => {
+          try {
+            await api('/api/admin/demote', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: u.login }) });
+            u.is_admin = false;
+            renderUsers();
+          } catch (err) { alert(err); }
+        }});
+      }
+      if (u.login !== me.login) {
+        items.push({ label: 'Просмотреть переписку', fn: () => openAdminUser(u.login) });
+        items.push({ label: 'Удалить пользователя', danger: true, fn: async () => {
+          if (!confirm('Точно удалить пользователя ' + u.login + '? Все его сообщения будут удалены.')) return;
+          try {
+            await api('/api/admin/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: u.login }) });
+            users = users.filter(x => x.login !== u.login);
+            renderUsers();
+          } catch (err) { alert(err); }
+        }});
+      }
+    }
+
+    for (const it of items) {
+      const b = document.createElement('button');
+      b.className = 'ctx-item' + (it.danger ? ' danger' : '');
+      b.textContent = it.label;
+      b.addEventListener('click', () => { elCtxMenu.classList.add('hidden'); it.fn(); });
+      elCtxMenu.appendChild(b);
+    }
+
+    elCtxMenu.classList.remove('hidden');
+    const mw = elCtxMenu.offsetWidth, mh = elCtxMenu.offsetHeight;
+    let x = e.clientX, y = e.clientY;
+    if (x + mw > window.innerWidth - 8) x = window.innerWidth - mw - 8;
+    if (y + mh > window.innerHeight - 8) y = window.innerHeight - mh - 8;
+    elCtxMenu.style.left = x + 'px';
+    elCtxMenu.style.top = y + 'px';
+  }
+
+  document.addEventListener('click', () => elCtxMenu.classList.add('hidden'));
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { elCtxMenu.classList.add('hidden'); closeAdmin(); } });
+
+  // ---------- Chat switching ----------
+  function updateChatHeader() {
+    if (currentChat.type === 'public') {
+      elChatTitle.textContent = 'Общий чат';
+      elChatDot.className = 'dot';
+      elBackBtn.classList.add('hidden');
+      elBlockedNotice.classList.add('hidden');
+      elInput.disabled = false;
+      elInput.placeholder = 'Введите сообщение...';
+    } else {
+      const u = currentChat.with;
+      elChatTitle.textContent = 'Личный чат: ' + u.name + ' (@' + u.login + ')';
+      elChatDot.className = 'dot ' + (u.online ? 'on' : 'off');
+      elBackBtn.classList.remove('hidden');
+      const blocked = u.iBlocked || u.blockedBy;
+      elInput.disabled = blocked;
+      elInput.placeholder = blocked ? '' : 'Напишите сообщение...';
+      elBlockedNotice.classList.toggle('hidden', !blocked);
+      elBlockedNotice.textContent = u.iBlocked ? 'Вы заблокировали этого пользователя.' : 'Этот пользователь заблокировал вас.';
+    }
+    elSend.disabled = !elInput.value.trim() || elInput.disabled;
+  }
+
+  function openPublicChat() {
+    currentChat = { type: 'public' };
+    if (!(chatKey(currentChat) in lastIds)) lastIds[chatKey(currentChat)] = 0;
+    elMessages.innerHTML = '';
+    updateChatHeader();
+    pollMessages();
+  }
+
+  function openPrivateChat(u) {
+    currentChat = { type: 'private', with: u };
+    if (!(chatKey(currentChat) in lastIds)) lastIds[chatKey(currentChat)] = 0;
+    elMessages.innerHTML = '<div class="empty">Загрузка...</div>';
+    updateChatHeader();
+    pollMessages();
+  }
+
+  elBackBtn.addEventListener('click', openPublicChat);
+
+  function refreshCurrentUserStatus() {
+    if (currentChat.type !== 'private') return;
+    const found = users.find(u => u.login === currentChat.with.login);
+    if (found) {
+      currentChat.with.online = found.online;
+      currentChat.with.iBlocked = found.iBlocked;
+      currentChat.with.blockedBy = found.blockedBy;
+      updateChatHeader();
+    }
   }
 
   // ---------- Messages ----------
-  function addMessage(m) {
-    if (document.querySelector(`.msg[data-id="${m.id}"]`)) return;
-    const empty = document.querySelector('.empty');
-    if (empty) empty.remove();
-
-    const nearBottom = elMessages.scrollHeight - elMessages.scrollTop - elMessages.clientHeight < 80;
-
+  function makeMsgEl(m) {
     const div = document.createElement('div');
     div.className = 'msg ' + (m.login === me.login ? 'mine' : 'other');
     div.dataset.id = m.id;
-
     const meta = document.createElement('div');
     meta.className = 'meta';
     const name = document.createElement('span');
-    name.className = 'name';
-    name.style.color = colorFor(m.login);
+    const isAdmin = m.admin || (users.find(u => u.login === m.login) || {}).is_admin;
+    name.className = 'name' + (isAdmin ? ' admin' : '');
+    if (!isAdmin) name.style.color = colorFor(m.login);
     name.textContent = m.name;
     const time = document.createElement('span');
     time.className = 'time';
     time.textContent = fmtTime(m.time);
     meta.appendChild(name);
     meta.appendChild(time);
-
     const bubble = document.createElement('div');
     bubble.className = 'bubble';
     bubble.textContent = m.text;
-
     div.appendChild(meta);
     div.appendChild(bubble);
-    elMessages.appendChild(div);
+    return div;
+  }
 
+  function addMessage(m) {
+    if (document.querySelector(`.msg[data-id="${m.id}"]`)) return;
+    const empty = document.querySelector('.empty');
+    if (empty) empty.remove();
+    const nearBottom = elMessages.scrollHeight - elMessages.scrollTop - elMessages.clientHeight < 80;
+    elMessages.appendChild(makeMsgEl(m));
     if (nearBottom) elMessages.scrollTop = elMessages.scrollHeight;
-    if (m.id > lastId) lastId = m.id;
+    if (m.id > lastIds[chatKey(currentChat)]) lastIds[chatKey(currentChat)] = m.id;
   }
 
   async function pollMessages() {
     if (!me) return;
+    const key = chatKey(currentChat);
+    const url = currentChat.type === 'public'
+      ? '/api/messages?after=' + (lastIds[key] || 0)
+      : '/api/messages?chat=private&with=' + encodeURIComponent(currentChat.with.login) + '&after=' + (lastIds[key] || 0);
     try {
-      const data = await api('/api/messages?after=' + lastId);
+      const data = await api(url);
       for (const m of data) addMessage(m);
     } catch (e) { /* ignore */ }
   }
 
   async function send() {
     const text = elInput.value.trim();
-    if (!text || pending || !me) return;
+    if (!text || pending || !me || elInput.disabled) return;
     pending = true;
     elSend.disabled = true;
+    const body = currentChat.type === 'public'
+      ? { text: text }
+      : { chat: 'private', to: currentChat.with.login, text: text };
     try {
       const m = await api('/api/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: text })
+        body: JSON.stringify(body)
       });
       addMessage(m);
       elInput.value = '';
       elInput.style.height = 'auto';
-    } catch (e) { /* ignore */ }
+    } catch (err) {
+      if (String(err).includes('заблокировали')) {
+        elInput.disabled = true;
+        elBlockedNotice.classList.remove('hidden');
+        elBlockedNotice.textContent = err;
+      }
+    }
     pending = false;
     elSend.disabled = false;
     elInput.focus();
@@ -474,21 +758,238 @@
 
   elSend.addEventListener('click', send);
   elInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      send();
-    }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
   });
   elInput.addEventListener('input', () => {
     elInput.style.height = 'auto';
     elInput.style.height = Math.min(elInput.scrollHeight, 140) + 'px';
-    elSend.disabled = !elInput.value.trim();
+    elSend.disabled = !elInput.value.trim() || elInput.disabled;
   });
-  elSearch.addEventListener('input', pollUsers);
 
+  async function pollUsers() {
+    if (!me) return;
+    try {
+      users = await api('/api/users');
+      renderUsers();
+      refreshCurrentUserStatus();
+    } catch (e) { /* ignore */ }
+  }
+
+  elSearch.addEventListener('input', renderUsers);
+
+  // ---------- Admin panel ----------
+  let adminState = { view: 'users' };
+
+  function closeAdmin() {
+    elAdminPanel.classList.add('hidden');
+    adminState = { view: 'users' };
+  }
+
+  function openAdmin() { adminState = { view: 'users' }; renderAdmin(); elAdminPanel.classList.remove('hidden'); }
+  function openAdminUser(login) { adminState = { view: 'chats', user: login }; renderAdmin(); elAdminPanel.classList.remove('hidden'); }
+
+  async function renderAdmin() {
+    if (adminState.view === 'users') await renderAdminUsers();
+    else if (adminState.view === 'chats') await renderAdminUserChats(adminState.user);
+    else if (adminState.view === 'conv') await renderAdminConversation(adminState.user, adminState.partner);
+  }
+
+  async function renderAdminUsers() {
+    let list = [];
+    try { list = await api('/api/admin/users'); } catch (e) { elAdminContent.innerHTML = '<div class="admin-empty">' + e + '</div>'; return; }
+    elAdminContent.innerHTML = '';
+    const toolbar = document.createElement('div');
+    toolbar.className = 'admin-toolbar';
+    const search = document.createElement('input');
+    search.id = 'adminSearch';
+    search.placeholder = 'Поиск по логину...';
+    toolbar.appendChild(search);
+    elAdminContent.appendChild(toolbar);
+
+    function draw(filtered) {
+      const prev = document.querySelectorAll('.admin-user');
+      prev.forEach(x => x.remove());
+      if (!filtered.length) {
+        const empty = document.createElement('div');
+        empty.className = 'admin-empty';
+        empty.textContent = 'Никого не найдено';
+        elAdminContent.appendChild(empty);
+        return;
+      }
+      for (const u of filtered) {
+        const row = document.createElement('div');
+        row.className = 'admin-user';
+        const dot = document.createElement('span');
+        dot.className = 'dot ' + (u.online ? 'on' : 'off');
+        const info = document.createElement('div');
+        info.className = 'au-info';
+        const nm = document.createElement('div');
+        nm.className = 'au-name';
+        nm.textContent = u.name;
+        if (u.is_admin) {
+          const b = document.createElement('span');
+          b.className = 'badge';
+          b.textContent = 'ADMIN';
+          nm.appendChild(b);
+        }
+        const lg = document.createElement('div');
+        lg.className = 'au-login';
+        lg.textContent = '@' + u.login + (u.online ? ' · в сети' : ' · не в сети');
+        info.appendChild(nm);
+        info.appendChild(lg);
+        const actions = document.createElement('div');
+        actions.className = 'au-actions';
+
+        const viewBtn = document.createElement('button');
+        viewBtn.className = 'btn';
+        viewBtn.textContent = 'Переписка';
+        viewBtn.title = 'Просмотреть личные чаты пользователя';
+        viewBtn.addEventListener('click', () => { adminState = { view: 'chats', user: u.login }; renderAdmin(); });
+        actions.appendChild(viewBtn);
+
+        if (u.login !== me.login) {
+          if (!u.is_admin) {
+            const p = document.createElement('button');
+            p.className = 'btn green';
+            p.textContent = 'Сделать админом';
+            p.addEventListener('click', async () => {
+              try { await api('/api/admin/promote', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: u.login }) }); renderAdmin(); }
+              catch (err) { alert(err); }
+            });
+            actions.appendChild(p);
+          } else {
+            const d = document.createElement('button');
+            d.className = 'btn';
+            d.textContent = 'Разжаловать';
+            d.addEventListener('click', async () => {
+              try { await api('/api/admin/demote', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: u.login }) }); renderAdmin(); }
+              catch (err) { alert(err); }
+            });
+            actions.appendChild(d);
+          }
+          const del = document.createElement('button');
+          del.className = 'btn red';
+          del.textContent = 'Удалить';
+          del.addEventListener('click', async () => {
+            if (!confirm('Удалить пользователя ' + u.login + '? Все его сообщения будут удалены.')) return;
+            try {
+              await api('/api/admin/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: u.login }) });
+              renderAdmin();
+            } catch (err) { alert(err); }
+          });
+          actions.appendChild(del);
+        }
+
+        row.appendChild(dot);
+        row.appendChild(info);
+        row.appendChild(actions);
+        elAdminContent.appendChild(row);
+      }
+    }
+
+    search.addEventListener('input', () => {
+      const q = search.value.trim().toLowerCase();
+      draw(list.filter(u => u.login.toLowerCase().includes(q)));
+    });
+    draw(list);
+  }
+
+  async function renderAdminUserChats(userLogin) {
+    let chats = [];
+    try { chats = await api('/api/admin/user/chats?user=' + encodeURIComponent(userLogin)); }
+    catch (e) { elAdminContent.innerHTML = '<div class="admin-empty">' + e + '</div>'; return; }
+
+    elAdminContent.innerHTML = '';
+    const head = document.createElement('div');
+    head.className = 'admin-toolbar';
+    const back = document.createElement('button');
+    back.className = 'back-btn';
+    back.textContent = '← Список пользователей';
+    back.addEventListener('click', () => { adminState = { view: 'users' }; renderAdmin(); });
+    const title = document.createElement('div');
+    title.style.color = 'var(--muted)';
+    title.textContent = 'Личные чаты пользователя @' + userLogin;
+    head.appendChild(back);
+    head.appendChild(title);
+    elAdminContent.appendChild(head);
+
+    if (!chats.length) {
+      const empty = document.createElement('div');
+      empty.className = 'admin-empty';
+      empty.textContent = 'У пользователя пока нет личных чатов';
+      elAdminContent.appendChild(empty);
+      return;
+    }
+
+    for (const c of chats) {
+      const row = document.createElement('button');
+      row.className = 'chat-row';
+      const h = document.createElement('div');
+      h.className = 'cr-head';
+      const n = document.createElement('span');
+      n.className = 'cr-name';
+      n.textContent = c.name + (c.exists ? '' : ' (удалён)');
+      const l = document.createElement('span');
+      l.className = 'cr-login';
+      l.textContent = '@' + c.login;
+      h.appendChild(n);
+      h.appendChild(l);
+      const last = document.createElement('div');
+      last.className = 'cr-last';
+      last.textContent = fmtTime(c.last_time) + ' · ' + c.last_text;
+      row.appendChild(h);
+      row.appendChild(last);
+      row.addEventListener('click', () => {
+        adminState = { view: 'conv', user: userLogin, partner: c.login };
+        renderAdmin();
+      });
+      elAdminContent.appendChild(row);
+    }
+  }
+
+  async function renderAdminConversation(userLogin, partnerLogin) {
+    let msgs = [];
+    try { msgs = await api('/api/admin/chat?user=' + encodeURIComponent(userLogin) + '&with=' + encodeURIComponent(partnerLogin)); }
+    catch (e) { elAdminContent.innerHTML = '<div class="admin-empty">' + e + '</div>'; return; }
+
+    elAdminContent.innerHTML = '';
+    const head = document.createElement('div');
+    head.className = 'admin-toolbar';
+    const back = document.createElement('button');
+    back.className = 'back-btn';
+    back.textContent = '← Чаты пользователя';
+    back.addEventListener('click', () => { adminState = { view: 'chats', user: userLogin }; renderAdmin(); });
+    const title = document.createElement('div');
+    title.style.color = 'var(--muted)';
+    title.textContent = 'Переписка @' + userLogin + ' ↔ @' + partnerLogin;
+    head.appendChild(back);
+    head.appendChild(title);
+    elAdminContent.appendChild(head);
+
+    if (!msgs.length) {
+      const empty = document.createElement('div');
+      empty.className = 'admin-empty';
+      empty.textContent = 'Сообщений нет';
+      elAdminContent.appendChild(empty);
+      return;
+    }
+    const conv = document.createElement('div');
+    conv.className = 'conv';
+    for (const m of msgs) {
+      conv.appendChild(makeMsgEl(m));
+    }
+    elAdminContent.appendChild(conv);
+  }
+
+  $('adminBtn').addEventListener('click', openAdmin);
+  $('adminClose').addEventListener('click', closeAdmin);
+
+  // ---------- Init ----------
   checkMe();
-  setInterval(pollMessages, 1000);
-  setInterval(pollUsers, 3000);
+  setInterval(() => {
+    pollMessages();
+    pollUsers();
+  }, 1000);
 })();
 </script>
 </body>
