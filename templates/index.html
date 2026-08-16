@@ -15,6 +15,15 @@
     --gold: #f1c40f;
     --blue: #5b8cff;
   }
+  body.theme-light {
+    --bg: #f0f2f5; --panel: #ffffff; --border: #d9dee7;
+    --text: #1b2333; --muted: #667085;
+    --accent: #3b6ef5; --accent-dark: #2e56c8;
+    --msg-self: #dfe9ff; --msg-other: #eef1f6;
+    --green: #16a34a; --gray: #98a2b3; --red: #d92d20; --red-dim: #b3403a;
+    --gold: #b8860b;
+    --blue: #3b6ef5;
+  }
   body { font-family: -apple-system,"Segoe UI",Roboto,Arial,sans-serif; background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; }
   .hidden { display: none !important; }
   button { font-family: inherit; }
@@ -178,6 +187,9 @@
   .prof-box { max-width: 440px; }
   .prof-av-row { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
   .prof-av-row .avatar { width: 64px; height: 64px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 700; color: #fff; overflow: hidden; flex: 0 0 64px; }
+  .theme-row { display: flex; gap: 10px; }
+  .theme-btn { flex: 1; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 10px; padding: 10px; font-size: 14px; font-weight: 600; cursor: pointer; }
+  .theme-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
   .prof-av-row .avatar img { width: 100%; height: 100%; object-fit: cover; }
   .prof-row { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
   .prof-row label { font-size: 12px; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
@@ -263,6 +275,7 @@
       <div class="you">
         <span id="miniAv" class="mini-av" title="Профиль"></span>
         Вы: <span id="yourName">...</span>
+        <button id="settingsBtn" class="hbtn" title="Настройки">⚙</button>
         <button id="profileBtn" class="hbtn">Профиль</button>
         <button id="logoutBtn" class="hbtn">Выйти</button>
       </div>
@@ -308,6 +321,29 @@
     <div class="admin-box">
       <header><h2>Админ-панель</h2><button id="adminClose" class="xbtn">×</button></header>
       <div class="admin-content" id="adminContent"></div>
+    </div>
+  </div>
+
+  <!-- Settings -->
+  <div id="settingsModal" class="overlay hidden">
+    <div class="admin-box prof-box">
+      <header><h2>Настройки</h2><button id="settingsClose" class="xbtn">×</button></header>
+      <div class="admin-content">
+        <div class="prof-row">
+          <label>Тема</label>
+          <div class="theme-row">
+            <button id="themeDark" class="theme-btn">Тёмная</button>
+            <button id="themeLight" class="theme-btn">Светлая</button>
+          </div>
+        </div>
+        <div class="prof-row">
+          <label>Смена пароля</label>
+          <input id="setCurPass" type="password" placeholder="Текущий пароль" autocomplete="current-password">
+          <input id="setNewPass" type="password" placeholder="Новый пароль (минимум 4 символа)" autocomplete="new-password">
+          <div class="prof-actions"><button id="setPassSave" class="btn">Сменить пароль</button></div>
+        </div>
+        <div id="settingsMsg" class="prof-msg"></div>
+      </div>
     </div>
   </div>
 
@@ -487,7 +523,7 @@
     teardownCall();
     me = null; userList = []; currentChat = { type: 'public' }; lastIds = { public: 0 };
     elMessages.innerHTML = '<div class="empty">Напишите первым!</div>';
-    elCtxMenu.classList.add('hidden'); closeAdmin(); hideProfile();
+    elCtxMenu.classList.add('hidden'); closeAdmin(); hideProfile(); hideSettings();
     showAuth();
   }
 
@@ -666,7 +702,7 @@
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
       elCtxMenu.classList.add('hidden');
-      hideProfile(); closeAdmin();
+      hideProfile(); hideSettings(); closeAdmin();
     }
   });
 
@@ -918,6 +954,36 @@
     try {
       await api('/api/profile/password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ current: $('profCurPass').value, new: $('profNewPass').value }) });
       $('profCurPass').value = ''; $('profNewPass').value = '';
+      msg.textContent = 'Пароль изменён';
+    } catch (err) { msg.classList.add('err'); msg.textContent = err; }
+  });
+
+  // ---------- Settings ----------
+  const elSettingsModal = $('settingsModal');
+  function setTheme(theme) {
+    document.body.classList.toggle('theme-light', theme === 'light');
+    localStorage.setItem('theme', theme);
+    $('themeDark').classList.toggle('active', theme !== 'light');
+    $('themeLight').classList.toggle('active', theme === 'light');
+  }
+  function showSettings() {
+    $('setCurPass').value = ''; $('setNewPass').value = '';
+    $('settingsMsg').textContent = '';
+    setTheme(localStorage.getItem('theme') || 'dark');
+    elSettingsModal.classList.remove('hidden');
+  }
+  function hideSettings() { elSettingsModal.classList.add('hidden'); }
+  setTheme(localStorage.getItem('theme') || 'dark');
+  $('settingsBtn').addEventListener('click', showSettings);
+  $('settingsClose').addEventListener('click', hideSettings);
+  $('themeDark').addEventListener('click', () => setTheme('dark'));
+  $('themeLight').addEventListener('click', () => setTheme('light'));
+  $('setPassSave').addEventListener('click', async () => {
+    const msg = $('settingsMsg');
+    msg.classList.remove('err');
+    try {
+      await api('/api/profile/password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ current: $('setCurPass').value, new: $('setNewPass').value }) });
+      $('setCurPass').value = ''; $('setNewPass').value = '';
       msg.textContent = 'Пароль изменён';
     } catch (err) { msg.classList.add('err'); msg.textContent = err; }
   });

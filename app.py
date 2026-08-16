@@ -470,8 +470,6 @@ def upload_message():
     msg_chat = "public"
     target = None
     if chat == "public":
-        if not user.get("is_admin"):
-            return jsonify({"error": "Фото и видео в общий чат могут отправлять только админы"}), 403
         if user.get("muted_until") and user["muted_until"] > time.time():
             return jsonify({"error": "Вы замьючены"}), 403
     else:
