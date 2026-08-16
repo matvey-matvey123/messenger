@@ -1,1 +1,11 @@
-[]
+[
+  {
+    "id": 1,
+    "login": "admin",
+    "name": "Матвей",
+    "password": "scrypt:32768:8:1$pxHWi9utB1Eyq6pb$fff0c31432bcd17249ebc50b680075ac381bf47a7775ae7b04adc23bd46ce985fbcfa5c6bfffd964926c1dd885953d9e631bcbffbadfc31922244583e6ad81a8",
+    "is_admin": true,
+    "blocked": [],
+    "hidden": []
+  }
+]

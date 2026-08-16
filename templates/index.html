@@ -259,6 +259,20 @@
   .conv { display: flex; flex-direction: column; gap: 10px; }
   .conv .msg { max-width: 80%; }
 
+  /* ---------- Admin password ---------- */
+  .pass-box {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 16px;
+    padding: 28px; width: 100%; max-width: 340px;
+  }
+  .pass-box h3 { font-size: 17px; margin-bottom: 16px; color: var(--red); }
+  .pass-box input {
+    width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 10px;
+    color: var(--text); padding: 12px 14px; font-size: 15px; outline: none;
+  }
+  .pass-box input:focus { border-color: var(--accent); }
+  .pass-btns { display: flex; gap: 10px; margin-top: 14px; }
+  .pass-btns .btn { padding: 9px 16px; font-size: 14px; }
+
   ::-webkit-scrollbar { width: 8px; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
   @media (max-width: 700px) {
@@ -298,10 +312,10 @@
   <div id="chatScreen" class="chat-screen hidden">
     <header>
       <div class="logo">М</div>
+      <button id="adminBtn" class="hbtn hidden">Админ-панель</button>
       <h1>Мессенджер</h1>
       <div class="you">
         Вы: <span id="yourName">...</span>
-        <button id="adminBtn" class="hbtn hidden">Админ-панель</button>
         <button id="logoutBtn" class="hbtn">Выйти</button>
       </div>
     </header>
@@ -350,6 +364,19 @@
     </div>
   </div>
 
+  <!-- Admin password modal -->
+  <div id="adminPassModal" class="overlay hidden">
+    <div class="pass-box">
+      <h3>Пароль администратора</h3>
+      <input id="adminPassInput" type="password" placeholder="Введите пароль..." autocomplete="off">
+      <div id="adminPassError" class="auth-error"></div>
+      <div class="pass-btns">
+        <button id="adminPassCancel" class="btn">Отмена</button>
+        <button id="adminPassOk" class="btn green">Войти</button>
+      </div>
+    </div>
+  </div>
+
 <script>
 (function () {
   const $ = (id) => document.getElementById(id);
@@ -367,6 +394,7 @@
   const elCtxMenu = $('ctxMenu');
   const elAdminPanel = $('adminPanel');
   const elAdminContent = $('adminContent');
+  const elAdminPassModal = $('adminPassModal');
   const elChatTitle = $('chatTitle');
   const elChatDot = $('chatDot');
   const elBackBtn = $('backBtn');
@@ -463,6 +491,7 @@
     lastIds = { public: 0 };
     elMessages.innerHTML = '<div class="empty">Напишите первым!</div>';
     elCtxMenu.classList.add('hidden');
+    hideAdminPass();
     closeAdmin();
     showAuth();
   }
@@ -626,7 +655,13 @@
   }
 
   document.addEventListener('click', () => elCtxMenu.classList.add('hidden'));
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { elCtxMenu.classList.add('hidden'); closeAdmin(); } });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      elCtxMenu.classList.add('hidden');
+      hideAdminPass();
+      closeAdmin();
+    }
+  });
 
   // ---------- Chat switching ----------
   function updateChatHeader() {
@@ -787,6 +822,33 @@
 
   function openAdmin() { adminState = { view: 'users' }; renderAdmin(); elAdminPanel.classList.remove('hidden'); }
   function openAdminUser(login) { adminState = { view: 'chats', user: login }; renderAdmin(); elAdminPanel.classList.remove('hidden'); }
+
+  function showAdminPass() {
+    $('adminPassInput').value = '';
+    $('adminPassError').textContent = '';
+    elAdminPassModal.classList.remove('hidden');
+    $('adminPassInput').focus();
+  }
+  function hideAdminPass() { elAdminPassModal.classList.add('hidden'); }
+
+  async function tryAdminPass() {
+    const err = $('adminPassError');
+    try {
+      await api('/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: $('adminPassInput').value })
+      });
+      hideAdminPass();
+      openAdmin();
+    } catch (msg) {
+      err.textContent = msg;
+    }
+  }
+
+  $('adminPassOk').addEventListener('click', tryAdminPass);
+  $('adminPassCancel').addEventListener('click', hideAdminPass);
+  $('adminPassInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') tryAdminPass(); });
 
   async function renderAdmin() {
     if (adminState.view === 'users') await renderAdminUsers();
@@ -981,7 +1043,13 @@
     elAdminContent.appendChild(conv);
   }
 
-  $('adminBtn').addEventListener('click', openAdmin);
+  $('adminBtn').addEventListener('click', async () => {
+    try {
+      const st = await api('/api/admin/status');
+      if (st.unlocked) openAdmin();
+      else showAdminPass();
+    } catch (e) { alert(e); }
+  });
   $('adminClose').addEventListener('click', closeAdmin);
 
   // ---------- Init ----------

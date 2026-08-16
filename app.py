@@ -16,6 +16,7 @@ app.secret_key = "messenger-secret-key-change-me"
 lock = threading.Lock()
 last_seen = {}
 ONLINE_TIMEOUT = 20
+ADMIN_PASSWORD = "mesenger123321"
 
 
 def load_users():
@@ -75,12 +76,19 @@ def chat_key(a, b):
     return "private:" + ":".join(sorted([a.lower(), b.lower()]))
 
 
-def require_admin():
+def current_admin():
     user = current_user()
+    if not user or not user.get("is_admin"):
+        return None
+    return user
+
+
+def require_admin():
+    user = current_admin()
     if not user:
-        return None, (jsonify({"error": "Войдите в аккаунт"}), 401)
-    if not user.get("is_admin"):
         return None, (jsonify({"error": "Нет прав администратора"}), 403)
+    if not session.get("admin_panel"):
+        return None, (jsonify({"error": "Требуется пароль администратора"}), 403)
     return user, None
 
 
@@ -322,6 +330,26 @@ def unhide_user():
 
 
 # ---------- Admin ----------
+
+@app.route("/api/admin/status")
+def admin_status():
+    user = current_admin()
+    if not user:
+        return jsonify({"is_admin": False, "unlocked": False})
+    return jsonify({"is_admin": True, "unlocked": bool(session.get("admin_panel"))})
+
+
+@app.route("/api/admin/login", methods=["POST"])
+def admin_login():
+    user = current_admin()
+    if not user:
+        return jsonify({"error": "Нет прав администратора"}), 403
+    data = request.get_json(silent=True) or {}
+    if str(data.get("password", "")) != ADMIN_PASSWORD:
+        return jsonify({"error": "Неверный пароль"}), 403
+    session["admin_panel"] = True
+    return jsonify({"ok": True})
+
 
 @app.route("/api/admin/users")
 def admin_users():
