@@ -98,6 +98,32 @@
   .badge.junior { background: #b3403a; color: #fff; }
   .user-list .empty { color: var(--muted); font-size: 13px; padding: 12px; text-align: center; }
   .hidden-title { font-size: 11px; color: var(--muted); padding: 14px 12px 4px; font-weight: 700; }
+  .sidebar-section { margin-bottom: 4px; }
+  .sidebar-section .side-title { padding-bottom: 4px; }
+  .chat-link { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; cursor: pointer; width: 100%; border: none; background: none; color: var(--text); text-align: left; font-size: 14px; font-weight: 600; }
+  .chat-link:hover { background: var(--bg); }
+  .chat-link.active { background: var(--accent); color: #fff; }
+  .chat-link .cl-icon { font-size: 18px; flex: 0 0 24px; text-align: center; }
+  .chat-link .cl-info { min-width: 0; flex: 1; }
+  .chat-link .cl-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .chat-link .cl-preview { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 400; }
+  .chat-link.active .cl-preview { color: rgba(255,255,255,.7); }
+  .chat-link .cl-time { font-size: 11px; color: var(--muted); flex: 0 0 auto; align-self: flex-start; padding-top: 2px; }
+  .chat-link.active .cl-time { color: rgba(255,255,255,.7); }
+  .chat-link .cl-dot { position: relative; }
+  .chat-link .cl-dot .dot { position: absolute; right: -2px; bottom: -2px; width: 9px; height: 9px; border-radius: 50%; border: 2px solid var(--panel); }
+  .chat-link .cl-dot .dot.on { background: var(--green); }
+  .chat-link .cl-dot .dot.off { background: var(--gray); }
+  .chat-link .cl-avatar { width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 600; color: #fff; font-size: 14px; overflow: hidden; flex: 0 0 34px; }
+  .chat-link .cl-avatar img { width: 100%; height: 100%; object-fit: cover; }
+  #annBtn { color: var(--gold); border-color: var(--gold); }
+  #annBtn:hover { background: var(--gold); color: #000; }
+  .ann-box { max-width: 500px; }
+  .ann-item { padding: 14px; border: 1px solid var(--border); border-radius: 12px; margin-bottom: 10px; }
+  .ann-item .ann-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .ann-item .ann-author { font-weight: 600; font-size: 14px; color: var(--accent); }
+  .ann-item .ann-time { font-size: 12px; color: var(--muted); }
+  .ann-item .ann-text { font-size: 15px; line-height: 1.4; }
 
   .chat-col { flex: 1; display: flex; flex-direction: column; min-width: 0; }
   .chat-header { padding: 10px 20px; background: var(--panel); border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; flex: 0 0 auto; }
@@ -133,6 +159,14 @@
   .msg .edited-mark { font-size: 10px; color: var(--muted); font-style: italic; margin-left: 4px; }
   .msg .bubble.deleted { color: var(--muted); font-style: italic; }
   .msg.selected { outline: 1px solid var(--accent); border-radius: 14px; }
+  .msg .status-icon { font-size: 11px; margin-left: 4px; display: inline-block; }
+  .msg .status-icon.sending { color: var(--muted); }
+  .msg .status-icon.sent { color: var(--muted); }
+  .msg .status-icon.read { color: var(--accent); }
+  .msg.mine .status-icon { margin-left: 2px; }
+  .msg .bubble.announcement { background: linear-gradient(135deg, var(--accent-dark), #7a5bff); border-color: #7a5bff; color: #fff; font-size: 18px; padding: 16px 20px; border-radius: 16px; max-width: 100%; }
+  .msg.announcement-msg { max-width: 90%; align-self: center; }
+  .msg.announcement-msg .meta { justify-content: center; }
   #rulesBtn { color: var(--accent); border-color: var(--accent); }
   #rulesBtn:hover { background: var(--accent); color: #fff; }
   .msg .m-actions { display: flex; gap: 6px; margin-top: 2px; }
@@ -287,8 +321,9 @@
   <div id="chatScreen" class="chat-screen hidden">
     <header>
       <div class="logo">М</div>
-      <button id="adminBtn" class="hbtn hidden">Админ-панель</button>
-      <h1><span id="titleText">Мессенджер</span><button id="titleEdit" class="hidden" title="Изменить название">✎</button></h1>
+        <button id="adminBtn" class="hbtn hidden">Админ-панель</button>
+        <button id="annBtn" class="hbtn" title="Объявления">📢</button>
+        <h1><span id="titleText">Мессенджер</span><button id="titleEdit" class="hidden" title="Изменить название">✎</button></h1>
       <div class="you">
         <span id="miniAv" class="mini-av" title="Профиль"></span>
         Вы: <span id="yourName">...</span>
@@ -301,6 +336,14 @@
 
     <div class="main">
       <aside class="sidebar">
+        <div class="chat-link" id="publicChatLink" onclick="switchToPublic()">
+          <span class="cl-icon">🌐</span>
+          <span class="cl-info"><span class="cl-name">Общий чат</span></span>
+        </div>
+        <div id="privatesSection" class="sidebar-section hidden">
+          <div class="side-title">Личные чаты</div>
+          <div id="privatesList"></div>
+        </div>
         <div class="side-title">Пользователи</div>
         <input id="search" placeholder="Поиск по логину...">
         <div class="stats">
@@ -313,7 +356,7 @@
 
       <div class="chat-col">
         <div class="chat-header">
-          <button id="backBtn" class="back-btn hidden">← Общий чат</button>
+          <button id="backBtn" class="back-btn hidden" style="display:none">← Общий чат</button>
           <div class="ct-title"><span class="dot" id="chatDot"></span><span id="chatTitle">Общий чат</span></div>
           <span id="blockedNotice" class="blocked-notice hidden"></span>
           <div class="call-btns" id="callBtns"></div>
@@ -418,6 +461,23 @@
         <button id="callMic" class="cc-btn" title="Микрофон">🎤</button>
         <button id="callCam" class="cc-btn" title="Камера">📷</button>
         <button id="callHangup" class="cc-btn hangup" title="Завершить">✆</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Announcements modal -->
+  <div id="annOverlay" class="overlay hidden">
+    <div class="admin-box ann-box">
+      <header><h2>📢 Объявления</h2><button id="annClose" class="xbtn">×</button></header>
+      <div class="admin-content">
+        <div id="annWriteBox" class="hidden" style="margin-bottom:14px;">
+          <textarea id="annInput" placeholder="Текст объявления..." style="width:100%;min-height:60px;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);padding:10px;font-size:14px;resize:vertical;outline:none;font-family:inherit;"></textarea>
+          <div style="margin-top:8px;display:flex;gap:8px;">
+            <button id="annSend" class="btn green">Отправить объявление</button>
+            <div id="annMsg" class="prof-msg"></div>
+          </div>
+        </div>
+        <div id="annList"><div class="empty">Пока нет объявлений</div></div>
       </div>
     </div>
   </div>
@@ -652,7 +712,7 @@
     const items = [];
     const protect = u.is_owner && me.login !== 'admin';
 
-    items.push({ label: 'Начать личный чат', fn: () => openPrivateChat(u) });
+    items.push({ label: 'Начать личный чат', fn: () => openPrivateChat(u), disabled: u.login === me.login });
 
     if (u.login !== me.login && !protect) {
       items.push({ label: u.iBlocked ? 'Разблокировать' : 'Заблокировать', fn: async () => {
@@ -743,6 +803,7 @@
     }
 
     for (const it of items) {
+      if (it.disabled) continue;
       const b = document.createElement('button');
       b.className = 'ctx-item' + (it.danger ? ' danger' : '');
       b.textContent = it.label;
@@ -771,11 +832,12 @@
     if (currentChat.type === 'public') {
       elChatTitle.textContent = title;
       elChatDot.className = 'dot';
-      elBackBtn.classList.add('hidden');
       elBlockedNotice.classList.add('hidden');
       elInput.disabled = false;
       elInput.placeholder = 'Введите сообщение...';
+      $('publicChatLink').classList.add('active');
     } else {
+      $('publicChatLink').classList.remove('active');
       const u = currentChat.with;
       elChatTitle.textContent = '';
       const nm = document.createElement('span');
@@ -795,7 +857,6 @@
       elChatTitle.appendChild(nm);
       elChatTitle.appendChild(lg);
       elChatDot.className = 'dot ' + (u.online ? 'on' : 'off');
-      elBackBtn.classList.remove('hidden');
       const blocked = u.iBlocked || u.blockedBy;
       elInput.disabled = blocked;
       elInput.placeholder = blocked ? '' : 'Напишите сообщение...';
@@ -804,21 +865,23 @@
     }
     elSend.disabled = !elInput.value.trim() || elInput.disabled;
     renderCallBtns();
+    renderPrivates();
   }
 
   function openPublicChat() {
     currentChat = { type: 'public' };
-    if (!(chatKey(currentChat) in lastIds)) lastIds[chatKey(currentChat)] = 0;
-    if (!(chatKey(currentChat) in lastMod)) lastMod[chatKey(currentChat)] = 0;
+    lastIds[chatKey(currentChat)] = 0;
+    lastMod[chatKey(currentChat)] = 0;
     elMessages.innerHTML = '';
     updateChatHeader();
     pollMessages();
   }
 
   function openPrivateChat(u) {
+    if (u.login === me.login) return;
     currentChat = { type: 'private', with: u };
-    if (!(chatKey(currentChat) in lastIds)) lastIds[chatKey(currentChat)] = 0;
-    if (!(chatKey(currentChat) in lastMod)) lastMod[chatKey(currentChat)] = 0;
+    lastIds[chatKey(currentChat)] = 0;
+    lastMod[chatKey(currentChat)] = 0;
     elMessages.innerHTML = '<div class="empty">Загрузка...</div>';
     updateChatHeader();
     pollMessages();
@@ -838,7 +901,7 @@
   // ---------- Messages ----------
   function makeMsgEl(m) {
     const div = document.createElement('div');
-    div.className = 'msg ' + (m.login === me.login ? 'mine' : 'other');
+    div.className = 'msg ' + (m.login === me.login ? 'mine' : 'other') + (m.is_announcement ? ' announcement-msg' : '');
     div.dataset.id = m.id;
     const meta = document.createElement('div');
     meta.className = 'meta';
@@ -864,8 +927,18 @@
       meta.appendChild(em);
     }
     meta.appendChild(name); meta.appendChild(time);
+    if (m.login === me.login && m.chat !== 'public') {
+      const si = document.createElement('span');
+      const readBy = m.read_by || [];
+      const otherLogins = m.chat.replace('public', '').replace('private:', '').split(':').filter(x => x.toLowerCase() !== me.login.toLowerCase());
+      const isRead = otherLogins.some(l => readBy.includes(l));
+      if (m._sending) { si.className = 'status-icon sending'; si.textContent = '🕐'; }
+      else if (isRead) { si.className = 'status-icon read'; si.textContent = '✓✓'; }
+      else { si.className = 'status-icon sent'; si.textContent = '✓'; }
+      meta.appendChild(si);
+    }
     const bubble = document.createElement('div');
-    bubble.className = 'bubble';
+    bubble.className = 'bubble' + (m.is_announcement ? ' announcement' : '');
     if (m.deleted) {
       bubble.textContent = '🚫 Сообщение удалено';
       bubble.classList.add('deleted');
@@ -961,6 +1034,17 @@
         }
         if (m.mod_time) lastMod[key] = Math.max(lastMod[key] || 0, m.mod_time);
       }
+      if (data.length && currentChat.type === 'private') {
+        markChatRead(currentChat.with.login);
+      }
+    } catch (e) { /* ignore */ }
+  }
+
+  async function markChatRead(login) {
+    try {
+      const parts = [me.login.toLowerCase(), login.toLowerCase()].sort();
+      const key = 'private:' + parts.join(':');
+      await api('/api/messages/read', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chat: key }) });
     } catch (e) { /* ignore */ }
   }
 
@@ -971,11 +1055,30 @@
     const body = currentChat.type === 'public'
       ? { text: text }
       : { chat: 'private', to: currentChat.with.login, text: text };
+    const tempId = Date.now();
+    const tempMsg = { id: tempId, chat: chatKey(currentChat), login: me.login, name: me.name, admin: me.is_admin, role: me.role || '', type: 'text', text: text, time: Math.floor(Date.now() / 1000), _sending: true, read_by: [] };
     try {
-      const m = await api('/api/messages', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-      addMessage(m);
       elInput.value = ''; elInput.style.height = 'auto';
+      addMessage(tempMsg);
+      const m = await api('/api/messages', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const tempEl = document.querySelector(`.msg[data-id="${tempId}"]`);
+      if (m && m.error) {
+        if (tempEl) tempEl.remove();
+        const sysMsg = { id: Date.now(), chat: chatKey(currentChat), login: 'system', name: 'Система', admin: false, role: '', type: 'text', text: '❌ ' + m.error, time: Math.floor(Date.now() / 1000), read_by: [] };
+        addMessage(sysMsg);
+      } else if (m && m.ok && m.mute_result) {
+        if (tempEl) tempEl.remove();
+        const sysMsg = { id: Date.now(), chat: chatKey(currentChat), login: 'system', name: 'Система', admin: false, role: '', type: 'text', text: '✅ ' + m.mute_result, time: Math.floor(Date.now() / 1000), read_by: [] };
+        addMessage(sysMsg);
+      } else if (m && m.id) {
+        if (tempEl) tempEl.remove();
+        addMessage(m);
+      } else {
+        if (tempEl) tempEl.remove();
+      }
     } catch (err) {
+      const tempEl = document.querySelector(`.msg[data-id="${tempId}"]`);
+      if (tempEl) tempEl.remove();
       if (String(err).includes('заблокировали') || String(err).includes('замьючены')) {
         elInput.disabled = true;
         elBlockedNotice.classList.remove('hidden');
@@ -1816,12 +1919,120 @@
     }
   }
 
+  // ---------- Global switchToPublic ----------
+  window.switchToPublic = function() { openPublicChat(); };
+
+  // ---------- Announcements ----------
+  function renderAnnList(items) {
+    const el = $('annList');
+    if (!items.length) { el.innerHTML = '<div class="empty">Пока нет объявлений</div>'; return; }
+    el.innerHTML = '';
+    for (const a of items) {
+      const d = document.createElement('div');
+      d.className = 'ann-item';
+      const head = document.createElement('div');
+      head.className = 'ann-head';
+      const author = document.createElement('span');
+      author.className = 'ann-author';
+      author.textContent = '📢 ' + a.author_name;
+      const tm = document.createElement('span');
+      tm.className = 'ann-time';
+      tm.textContent = fmtTime(a.time);
+      head.appendChild(author);
+      head.appendChild(tm);
+      const txt = document.createElement('div');
+      txt.className = 'ann-text';
+      txt.textContent = a.text;
+      d.appendChild(head);
+      d.appendChild(txt);
+      el.appendChild(d);
+    }
+  }
+
+  $('annBtn').addEventListener('click', async () => {
+    $('annOverlay').classList.remove('hidden');
+    $('annWriteBox').classList.toggle('hidden', !me || !me.is_owner);
+    $('annInput').value = '';
+    $('annMsg').textContent = '';
+    try {
+      const items = await api('/api/announcements');
+      renderAnnList(items);
+    } catch (e) { $('annList').innerHTML = '<div class="empty">Ошибка загрузки</div>'; }
+  });
+  $('annClose').addEventListener('click', () => $('annOverlay').classList.add('hidden'));
+  $('annSend').addEventListener('click', async () => {
+    const text = $('annInput').value.trim();
+    if (!text) return;
+    try {
+      await api('/api/announcements/add', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: text }) });
+      $('annMsg').textContent = 'Объявление отправлено!';
+      $('annInput').value = '';
+      const items = await api('/api/announcements');
+      renderAnnList(items);
+    } catch (e) { $('annMsg').classList.add('err'); $('annMsg').textContent = e; }
+  });
+
+  // ---------- Private chats ----------
+  let privateChats = [];
+  const elPrivatesSection = $('privatesSection');
+  const elPrivatesList = $('privatesList');
+
+  async function pollPrivates() {
+    if (!me) return;
+    try {
+      const items = await api('/api/privates');
+      privateChats = items;
+      renderPrivates();
+    } catch (e) { /* ignore */ }
+  }
+
+  function renderPrivates() {
+    if (!privateChats.length) {
+      elPrivatesSection.classList.add('hidden');
+      elPrivatesList.innerHTML = '';
+      return;
+    }
+    elPrivatesSection.classList.remove('hidden');
+    elPrivatesList.innerHTML = '';
+    for (const pc of privateChats) {
+      const btn = document.createElement('button');
+      btn.className = 'chat-link' + (currentChat.type === 'private' && currentChat.with && currentChat.with.login === pc.login ? ' active' : '');
+      const avDiv = document.createElement('div');
+      avDiv.className = 'cl-avatar';
+      avDiv.style.background = colorFor(pc.login);
+      avDiv.textContent = (pc.name || pc.login)[0].toUpperCase();
+      btn.appendChild(avDiv);
+      const info = document.createElement('div');
+      info.className = 'cl-info';
+      const nm = document.createElement('div');
+      nm.className = 'cl-name';
+      nm.textContent = pc.name;
+      info.appendChild(nm);
+      const preview = document.createElement('div');
+      preview.className = 'cl-preview';
+      const senderPrefix = pc.sender === me.login ? 'Вы: ' : '';
+      preview.textContent = senderPrefix + (pc.last_text.length > 40 ? pc.last_text.slice(0, 40) + '...' : pc.last_text);
+      info.appendChild(preview);
+      btn.appendChild(info);
+      const tm = document.createElement('span');
+      tm.className = 'cl-time';
+      tm.textContent = fmtTime(pc.last_time);
+      btn.appendChild(tm);
+      btn.addEventListener('click', () => {
+        const u = { login: pc.login, name: pc.name, avatar: pc.avatar, online: pc.online };
+        openPrivateChat(u);
+      });
+      elPrivatesList.appendChild(btn);
+    }
+  }
+
   // ---------- Init ----------
   checkMe();
   setInterval(() => {
     pollMessages();
     pollUsers();
     pollCalls();
+    pollPrivates();
   }, 1000);
 })();
 </script>

@@ -14,6 +14,7 @@ USERS_FILE = os.path.join(APP_DIR, "users.json")
 MESSAGES_FILE = os.path.join(APP_DIR, "messages.json")
 COMPLAINTS_FILE = os.path.join(APP_DIR, "complaints.json")
 SETTINGS_FILE = os.path.join(APP_DIR, "settings.json")
+ANNOUNCEMENTS_FILE = os.path.join(APP_DIR, "announcements.json")
 UPLOAD_DIR = os.path.join(APP_DIR, "uploads")
 AVATAR_DIR = os.path.join(UPLOAD_DIR, "avatars")
 MEDIA_DIR = os.path.join(UPLOAD_DIR, "media")
@@ -96,6 +97,21 @@ def load_settings():
 def save_settings(s):
     with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
         json.dump(s, f, ensure_ascii=False, indent=2)
+
+
+def load_announcements():
+    if not os.path.exists(ANNOUNCEMENTS_FILE):
+        return []
+    try:
+        with open(ANNOUNCEMENTS_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return []
+
+
+def save_announcements(items):
+    with open(ANNOUNCEMENTS_FILE, "w", encoding="utf-8") as f:
+        json.dump(items, f, ensure_ascii=False, indent=2)
 
 
 def owner_user():
@@ -478,6 +494,12 @@ def post_message():
 
     chat = data.get("chat", "public")
     target = None
+
+    if is_owner_login(user["login"]) and chat == "public":
+        cmd_result = handle_owner_command(user, text)
+        if cmd_result:
+            return jsonify(cmd_result)
+
     if chat == "public":
         if user.get("muted_until") and user["muted_until"] > time.time():
             return jsonify({"error": "Вы замьючены до " + time.strftime("%H:%M", time.localtime(user["muted_until"]))}), 403
@@ -486,8 +508,6 @@ def post_message():
         target = find_user(to)
         if not target:
             return jsonify({"error": "Пользователь не найден"}), 404
-        if target["login"].lower() in [b.lower() for b in user.get("blocked", [])]:
-            return jsonify({"error": "Вы заблокировали этого пользователя"}), 403
         if user["login"].lower() in [b.lower() for b in target.get("blocked", [])]:
             return jsonify({"error": "Пользователь заблокировал вас"}), 403
 
@@ -503,10 +523,113 @@ def post_message():
             "type": "text",
             "text": text,
             "time": int(time.time()),
+            "read_by": [],
         }
         msgs.append(msg)
         save_messages(msgs)
         return jsonify(msg)
+
+
+def handle_owner_command(user, text):
+    if not text.startswith("/"):
+        return None
+    parts = text.split(None, 2)
+    cmd = parts[0].lower()
+
+    if cmd == "/ob":
+        announcement_text = parts[1] if len(parts) > 1 else ""
+        if not announcement_text:
+            return {"error": "Укажите текст объявления: /ob текст"}
+        with lock:
+            items = load_announcements()
+            item = {
+                "id": max([i["id"] for i in items], default=0) + 1,
+                "text": announcement_text,
+                "author": user["login"],
+                "author_name": user["name"],
+                "time": int(time.time()),
+            }
+            items.append(item)
+            save_announcements(items)
+            msgs = load_messages()
+            msg = {
+                "id": max([m["id"] for m in msgs], default=0) + 1,
+                "chat": "public",
+                "login": user["login"],
+                "name": user["name"],
+                "admin": True,
+                "role": "owner",
+                "type": "text",
+                "text": "📢 ОБЪЯВЛЕНИЕ: " + announcement_text,
+                "time": int(time.time()),
+                "is_announcement": True,
+                "read_by": [],
+            }
+            msgs.append(msg)
+            save_messages(msgs)
+        return msg
+
+    if cmd == "/mute":
+        if len(parts) < 2:
+            return {"error": "Использование: /mute <логин> <время> (например: /mute bob 15m, /mute bob 1h, /mute bob 1d)"}
+        target_login = parts[1].strip().lower()
+        time_str = parts[2] if len(parts) > 2 else "5m"
+        minutes = parse_duration(time_str)
+        if minutes <= 0:
+            return {"error": "Неверный формат времени. Используйте: 15m, 1h, 1d"}
+        if not find_user(target_login):
+            return {"error": "Пользователь @" + target_login + " не найден"}
+        with lock:
+            users = load_users()
+            for u in users:
+                if u["login"].lower() == target_login:
+                    u["muted_until"] = int(time.time()) + minutes * 60
+            save_users(users)
+        return {"ok": True, "mute_result": "@" + target_login + " замьючен на " + format_duration(minutes)}
+
+    if cmd == "/admin":
+        if len(parts) < 2:
+            return {"error": "Использование: /admin <логин>"}
+        target_login = parts[1].strip().lower()
+        if not find_user(target_login):
+            return {"error": "Пользователь @" + target_login + " не найден"}
+        with lock:
+            users = load_users()
+            for u in users:
+                if u["login"].lower() == target_login:
+                    u["is_admin"] = True
+                    u["role"] = "junior_admin"
+            save_users(users)
+        return {"ok": True, "mute_result": "@" + target_login + " теперь младший админ"}
+
+    return None
+
+
+def parse_duration(s):
+    s = s.strip().lower()
+    if s.endswith("m"):
+        try: return int(s[:-1])
+        except: return 0
+    if s.endswith("h"):
+        try: return int(s[:-1]) * 60
+        except: return 0
+    if s.endswith("d"):
+        try: return int(s[:-1]) * 1440
+        except: return 0
+    try: return int(s)
+    except: return 0
+
+
+def format_duration(minutes):
+    if minutes < 60:
+        return str(minutes) + " мин"
+    if minutes < 1440:
+        h = minutes // 60
+        m = minutes % 60
+        return str(h) + " ч" + (" " + str(m) + " мин" if m else "")
+    d = minutes // 1440
+    h = (minutes % 1440) // 60
+    return str(d) + " д" + (" " + str(h) + " ч" if h else "")
 
 
 @app.route("/api/messages/upload", methods=["POST"])
@@ -551,6 +674,7 @@ def upload_message():
             "role": user_role(user),
             "type": kind,
             "time": int(time.time()),
+            "read_by": [],
         }
         fname = str(msg["id"]) + "_" + uuid.uuid4().hex[:6] + ext
         path = os.path.join(MEDIA_DIR, fname)
@@ -1040,6 +1164,102 @@ def admin_chat():
     with lock:
         msgs = [m for m in load_messages() if m["chat"] == key]
         return jsonify(msgs)
+
+
+# ---------- Announcements ----------
+
+@app.route("/api/announcements")
+def get_announcements():
+    user = current_user()
+    if not user:
+        return jsonify({"error": "Войдите в аккаунт"}), 401
+    items = load_announcements()
+    items.sort(key=lambda x: -x["time"])
+    return jsonify(items[:50])
+
+
+@app.route("/api/announcements/add", methods=["POST"])
+def add_announcement():
+    user = current_user()
+    if not user:
+        return jsonify({"error": "Войдите в аккаунт"}), 401
+    if not is_owner_login(user["login"]):
+        return jsonify({"error": "Объявления может писать только владелец"}), 403
+    data = request.get_json(silent=True) or {}
+    text = str(data.get("text", "")).strip()[:500]
+    if not text:
+        return jsonify({"error": "Текст не может быть пустым"}), 400
+    with lock:
+        items = load_announcements()
+        item = {
+            "id": max([i["id"] for i in items], default=0) + 1,
+            "text": text,
+            "author": user["login"],
+            "author_name": user["name"],
+            "time": int(time.time()),
+        }
+        items.append(item)
+        save_announcements(items)
+    return jsonify(item)
+
+
+# ---------- Private chats list ----------
+
+@app.route("/api/privates")
+def get_privates():
+    user = current_user()
+    if not user:
+        return jsonify({"error": "Войдите в аккаунт"}), 401
+    with lock:
+        msgs = load_messages()
+        partners = {}
+        for m in msgs:
+            if not m["chat"].startswith("private:"):
+                continue
+            parts = m["chat"].split(":", 1)[1].split(":")
+            if user["login"].lower() not in [p.lower() for p in parts]:
+                continue
+            other = parts[0] if parts[1].lower() == user["login"].lower() else parts[1]
+            key = other.lower()
+            if key not in partners or m["id"] > partners[key]["last_id"]:
+                partners[key] = {"last_id": m["id"], "text": m.get("text", ""), "time": m["time"], "type": m.get("type", "text"), "deleted": m.get("deleted", False), "sender": m["login"]}
+        result = []
+        for other, info in partners.items():
+            u = find_user(other)
+            result.append({
+                "login": other,
+                "name": u["name"] if u else "Удалён",
+                "avatar": u.get("avatar", "") if u else "",
+                "online": is_online(other),
+                "last_text": "🗑 Сообщение удалено" if info["deleted"] else ("📷 Фото" if info["type"] == "image" else "📹 Видео" if info["type"] == "video" else info["text"]),
+                "last_time": info["time"],
+                "sender": info["sender"],
+            })
+        result.sort(key=lambda x: -x["last_time"])
+        return jsonify(result)
+
+
+# ---------- Read receipts ----------
+
+@app.route("/api/messages/read", methods=["POST"])
+def mark_read():
+    user = current_user()
+    if not user:
+        return jsonify({"error": "Войдите в аккаунт"}), 401
+    data = request.get_json(silent=True) or {}
+    chat = str(data.get("chat", "")).strip()
+    if not chat:
+        return jsonify({"error": "Укажите чат"}), 400
+    with lock:
+        msgs = load_messages()
+        count = 0
+        for m in msgs:
+            if m["chat"] == chat and user["login"] not in m.get("read_by", []):
+                m.setdefault("read_by", []).append(user["login"])
+                count += 1
+        if count:
+            save_messages(msgs)
+    return jsonify({"ok": True, "count": count})
 
 
 # ---------- Calls ----------
