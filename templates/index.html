@@ -289,6 +289,62 @@
   ::-webkit-scrollbar { width: 8px; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
   @media (max-width: 700px) { .sidebar { width: 190px; flex-basis: 190px; } .msg { max-width: 85%; } header h1 { font-size: 16px; } }
+  /* Mobile adaptation */
+  @media (max-width: 768px) {
+    header { flex-wrap: wrap; padding: 10px 12px; gap: 8px; }
+    header .you { margin-left: 0; width: 100%; justify-content: flex-end; font-size: 12px; flex-wrap: wrap; gap: 4px; }
+    header .you .hbtn { padding: 4px 8px; font-size: 11px; }
+    header h1 { font-size: 15px; }
+
+    .main { flex-direction: column; }
+    .sidebar { width: 100% !important; flex: none !important; border-right: none; border-bottom: 1px solid var(--border); max-height: 40vh; overflow: hidden; display: flex; flex-direction: column; }
+    .sidebar.mobile-hidden { display: none; }
+    .chat-col { flex: 1; min-height: 0; }
+
+    .chat-col.active-chat ~ .sidebar { display: none; }
+
+    #messages { padding: 12px; gap: 8px; }
+    .msg { max-width: 85%; }
+    .msg.mine { align-self: flex-end; }
+    .msg.other { align-self: flex-start; }
+
+    .chat-header { padding: 8px 12px; gap: 6px; }
+    .chat-header .ct-title { font-size: 14px; }
+
+    footer { padding: 8px 10px; gap: 6px; }
+    #input { padding: 10px 12px; font-size: 14px; }
+    #send { padding: 0 14px; font-size: 14px; }
+    #attachBtn { width: 40px; font-size: 18px; }
+
+    .admin-box { height: min(90vh, 90vw); border-radius: 12px; }
+    .admin-box > header { padding: 10px 14px; }
+
+    .auth-card { padding: 24px; }
+
+    .stats { flex-wrap: wrap; }
+    .stat { min-width: 60px; }
+
+    #ctxMenu { min-width: 180px; }
+
+    .media-img, .media-vid { max-width: 260px; max-height: 260px; }
+  }
+
+  @media (max-width: 480px) {
+    header { padding: 8px 10px; gap: 6px; }
+    header .you .hbtn:not(#logoutBtn):not(#adminBtn) { display: none; }
+    header .you .hbtn#logoutBtn { font-size: 11px; padding: 3px 6px; }
+    header .you .hbtn#adminBtn { font-size: 11px; padding: 3px 6px; }
+    header h1 { font-size: 14px; }
+
+    .sidebar { max-height: 50vh; }
+    .user-item { padding: 7px 8px; gap: 8px; }
+    .u-av .avatar { width: 30px; height: 30px; }
+
+    .msg { max-width: 90%; }
+
+    #ctxMenu { min-width: 160px; font-size: 13px; }
+    .ctx-item { padding: 8px 10px; font-size: 13px; }
+  }
 </style>
 </head>
 <body>
@@ -390,6 +446,11 @@
     <div class="admin-box prof-box">
       <header><h2>Настройки</h2><button id="settingsClose" class="xbtn">×</button></header>
       <div class="admin-content">
+        <div id="roleHiddenBox" class="prof-row hidden">
+          <label>Режим наблюдателя</label>
+          <div class="prof-actions"><button id="roleHiddenBtn" class="btn">Войти как обычный гражданин</button></div>
+          <div id="roleHiddenMsg" class="prof-msg" style="font-size:12px;margin-top:4px;"></div>
+        </div>
         <div class="prof-row">
           <label>Тема</label>
           <div class="theme-row">
@@ -584,7 +645,7 @@
     try {
       const data = await api('/api/me');
       if (data.authenticated) {
-        me = { login: data.login, name: data.name, is_admin: data.is_admin, is_owner: data.is_owner, role: data.role || '', avatar: data.avatar };
+        me = { login: data.login, name: data.name, is_admin: data.is_admin, is_owner: data.is_owner, role: data.role || '', avatar: data.avatar, role_hidden: data.role_hidden || false };
         showChat();
       } else showAuth();
     } catch (e) { showAuth(); }
@@ -595,7 +656,7 @@
     const err = $('loginError'); err.textContent = '';
     try {
       const data = await api('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: $('loginLogin').value.trim(), password: $('loginPassword').value }) });
-      me = { login: data.login, name: data.name, is_admin: data.is_admin, is_owner: data.is_owner, role: data.role || '', avatar: data.avatar };
+      me = { login: data.login, name: data.name, is_admin: data.is_admin, is_owner: data.is_owner, role: data.role || '', avatar: data.avatar, role_hidden: data.role_hidden || false };
       $('loginPassword').value = '';
       showChat();
     } catch (msg) { err.textContent = msg; }
@@ -875,6 +936,7 @@
     elMessages.innerHTML = '';
     updateChatHeader();
     pollMessages();
+    showSidebar(false);
   }
 
   function openPrivateChat(u) {
@@ -885,9 +947,23 @@
     elMessages.innerHTML = '<div class="empty">Загрузка...</div>';
     updateChatHeader();
     pollMessages();
+    showSidebar(false);
   }
 
-  elBackBtn.addEventListener('click', openPublicChat);
+  function showSidebar(show) {
+    const sb = document.querySelector('.sidebar');
+    const cc = document.querySelector('.chat-col');
+    if (!sb || !cc) return;
+    if (window.innerWidth <= 768) {
+      sb.style.display = show ? 'flex' : 'none';
+      cc.style.display = show ? 'none' : 'flex';
+    } else {
+      sb.style.display = '';
+      cc.style.display = '';
+    }
+  }
+
+  elBackBtn.addEventListener('click', () => { openPublicChat(); showSidebar(true); });
 
   function refreshCurrentUserStatus() {
     if (currentChat.type !== 'private') return;
@@ -955,7 +1031,32 @@
     }
     div.appendChild(meta); div.appendChild(bubble);
 
-    if (!m.deleted && (m.login === me.login || me.is_admin)) {
+    if (m.deleted && me.is_admin) {
+      const actions = document.createElement('div');
+      actions.className = 'm-actions hidden';
+      const permDel = document.createElement('button');
+      permDel.textContent = 'Удалить навсегда';
+      permDel.className = 'danger';
+      permDel.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        if (!confirm('Удалить навсегда? Это действие необратимо.')) return;
+        try {
+          await api('/api/messages/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: m.id }) });
+          const el = document.querySelector(`.msg[data-id="${m.id}"]`);
+          if (el) el.remove();
+        } catch (err) { alert(err); }
+      });
+      actions.appendChild(permDel);
+      div.appendChild(actions);
+      div.addEventListener('click', (e) => {
+        if (e.target.closest('video') || e.target.closest('img')) return;
+        e.stopPropagation();
+        if (selectedMsg && selectedMsg !== div) { selectedMsg.classList.remove('selected'); const oldA = selectedMsg.querySelector('.m-actions'); if (oldA) oldA.classList.add('hidden'); }
+        div.classList.toggle('selected');
+        actions.classList.toggle('hidden', !div.classList.contains('selected'));
+        selectedMsg = div.classList.contains('selected') ? div : null;
+      });
+    } else if (!m.deleted && (m.login === me.login || me.is_admin)) {
       const actions = document.createElement('div');
       actions.className = 'm-actions hidden';
       if (m.login === me.login && m.type === 'text') {
@@ -1201,6 +1302,21 @@
     $('setCurPass').value = ''; $('setNewPass').value = '';
     $('settingsMsg').textContent = '';
     setTheme(localStorage.getItem('theme') || 'dark');
+    $('roleHiddenBox').classList.toggle('hidden', !me.is_owner);
+    if (me.is_owner) {
+      const btn = $('roleHiddenBtn');
+      const msg = $('roleHiddenMsg');
+      msg.textContent = '';
+      if (me.role_hidden) {
+        btn.textContent = 'Вернуть статус владельца';
+        msg.textContent = 'Вы сейчас как обычный пользователь. Префикс скрыт.';
+        msg.style.color = 'var(--gold)';
+      } else {
+        btn.textContent = 'Войти как обычный гражданин';
+        msg.textContent = 'Префикс "Владелец" будет скрыт от всех. Привилегии сохраняются.';
+        msg.style.color = 'var(--muted)';
+      }
+    }
     elSettingsModal.classList.remove('hidden');
   }
   function hideSettings() { elSettingsModal.classList.add('hidden'); }
@@ -1217,6 +1333,16 @@
       await api('/api/profile/password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ current: $('setCurPass').value, new: $('setNewPass').value }) });
       $('setCurPass').value = ''; $('setNewPass').value = '';
       msg.textContent = 'Пароль изменён';
+    } catch (err) { msg.classList.add('err'); msg.textContent = err; }
+  });
+  $('roleHiddenBtn').addEventListener('click', async () => {
+    const msg = $('roleHiddenMsg');
+    msg.textContent = '';
+    try {
+      const newHide = !me.role_hidden;
+      await api('/api/profile/role_hidden', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ hide: newHide }) });
+      me.role_hidden = newHide;
+      showSettings();
     } catch (err) { msg.classList.add('err'); msg.textContent = err; }
   });
 
@@ -1920,7 +2046,7 @@
   }
 
   // ---------- Global switchToPublic ----------
-  window.switchToPublic = function() { openPublicChat(); };
+  window.switchToPublic = function() { openPublicChat(); showSidebar(true); };
 
   // ---------- Announcements ----------
   function renderAnnList(items) {
@@ -2021,6 +2147,7 @@
       btn.addEventListener('click', () => {
         const u = { login: pc.login, name: pc.name, avatar: pc.avatar, online: pc.online };
         openPrivateChat(u);
+        showSidebar(false);
       });
       elPrivatesList.appendChild(btn);
     }
@@ -2028,6 +2155,18 @@
 
   // ---------- Init ----------
   checkMe();
+
+  window.addEventListener('resize', () => {
+    const sb = document.querySelector('.sidebar');
+    const cc = document.querySelector('.chat-col');
+    if (!sb || !cc) return;
+    if (window.innerWidth > 768) {
+      sb.style.display = '';
+      sb.classList.remove('mobile-hidden');
+      cc.style.display = '';
+    }
+  });
+
   setInterval(() => {
     pollMessages();
     pollUsers();

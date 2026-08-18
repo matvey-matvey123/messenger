@@ -215,14 +215,15 @@ def can_delete_account(requester):
 
 
 def public_info(u):
+    hidden = u.get("role_hidden", False)
     return {
         "login": u["login"],
         "name": u["name"],
         "avatar": u.get("avatar", ""),
         "online": is_online(u["login"]),
-        "is_admin": u.get("is_admin", False),
-        "is_owner": is_owner_login(u["login"]),
-        "role": user_role(u),
+        "is_admin": False if hidden else u.get("is_admin", False),
+        "is_owner": False if hidden else is_owner_login(u["login"]),
+        "role": "" if hidden else user_role(u),
         "muted": bool(u.get("muted_until") and u["muted_until"] > time.time()),
         "muted_until": u.get("muted_until"),
     }
@@ -283,7 +284,8 @@ def register():
         }
         users.append(user)
         save_users(users)
-    session["login"] = login
+    if not session.get("login"):
+        session["login"] = login
     last_seen[login] = time.time()
     return jsonify({"ok": True, "login": login, "name": name, "is_admin": user["is_admin"], "role": user_role(user)})
 
@@ -333,6 +335,7 @@ def me():
         "avatar": user.get("avatar", ""),
         "blocked": user.get("blocked", []),
         "hidden": user.get("hidden", []),
+        "role_hidden": user.get("role_hidden", False),
     })
 
 
@@ -731,6 +734,12 @@ def delete_message():
         msgs = load_messages()
         for m in msgs:
             if m["id"] == mid:
+                if m.get("deleted"):
+                    if not user.get("is_admin"):
+                        return jsonify({"error": "Можно удалять только свои сообщения"}), 403
+                    msgs = [x for x in msgs if x["id"] != mid]
+                    save_messages(msgs)
+                    return jsonify({"id": mid, "permanently_deleted": True})
                 if m["login"].lower() != user["login"].lower() and not user.get("is_admin"):
                     return jsonify({"error": "Можно удалять только свои сообщения"}), 403
                 m["deleted"] = True
@@ -780,6 +789,22 @@ def profile_password():
                 u["password"] = generate_password_hash(new)
         save_users(users)
     return jsonify({"ok": True})
+
+
+@app.route("/api/profile/role_hidden", methods=["POST"])
+def profile_role_hidden():
+    user = current_user()
+    if not user:
+        return jsonify({"error": "Войдите в аккаунт"}), 401
+    data = request.get_json(silent=True) or {}
+    hide = bool(data.get("hide"))
+    with lock:
+        users = load_users()
+        for u in users:
+            if u["login"].lower() == user["login"].lower():
+                u["role_hidden"] = hide
+        save_users(users)
+    return jsonify({"ok": True, "role_hidden": hide})
 
 
 @app.route("/api/profile/avatar", methods=["POST"])
