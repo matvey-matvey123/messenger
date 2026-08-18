@@ -17,6 +17,7 @@ SETTINGS_FILE = os.path.join(APP_DIR, "settings.json")
 ANNOUNCEMENTS_FILE = os.path.join(APP_DIR, "announcements.json")
 APPLICATIONS_FILE = os.path.join(APP_DIR, "applications.json")
 BOTS_FILE = os.path.join(APP_DIR, "bots.json")
+BANNED_WORDS_FILE = os.path.join(APP_DIR, "banned_words.json")
 UPLOAD_DIR = os.path.join(APP_DIR, "uploads")
 AVATAR_DIR = os.path.join(UPLOAD_DIR, "avatars")
 MEDIA_DIR = os.path.join(UPLOAD_DIR, "media")
@@ -98,7 +99,7 @@ def load_settings():
         with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
     except (json.JSONDecodeError, OSError):
-        return {"title": "Мессенджер"}
+        return {"title": "Кокаколик"}
 
 
 def save_settings(s):
@@ -148,6 +149,21 @@ def load_bots():
 
 def save_bots(items):
     with open(BOTS_FILE, "w", encoding="utf-8") as f:
+        json.dump(items, f, ensure_ascii=False, indent=2)
+
+
+def load_banned_words():
+    if not os.path.exists(BANNED_WORDS_FILE):
+        return []
+    try:
+        with open(BANNED_WORDS_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return []
+
+
+def save_banned_words(items):
+    with open(BANNED_WORDS_FILE, "w", encoding="utf-8") as f:
         json.dump(items, f, ensure_ascii=False, indent=2)
 
 
@@ -231,6 +247,10 @@ def is_deputy_or_owner(user):
     return is_owner_login(user.get("login", "")) or user.get("role") == "deputy_owner"
 
 
+def is_full_owner(user):
+    return is_owner_login(user.get("login", ""))
+
+
 def user_role(u):
     if is_owner_login(u.get("login", "")):
         return "owner"
@@ -284,6 +304,7 @@ def public_info(u):
         "cocacoliki": u.get("cocacoliki", 0),
         "spam_blocked": u.get("spam_blocked", False),
         "warnings": u.get("warnings", 0),
+        "tg_username": u.get("tg_username", ""),
     }
 
 
@@ -330,6 +351,7 @@ def register():
     if login != "zamadmin" and "admin" in login:
         return jsonify({"error": "Этот логин запрещён"}), 400
     ensure_owner()
+    tg_username = str(data.get("tg_username", "")).strip().lstrip("@")[:50]
     with lock:
         users = load_users()
         user = {
@@ -341,6 +363,7 @@ def register():
             "blocked": [],
             "hidden": [],
             "avatar": "",
+            "tg_username": tg_username,
         }
         users.append(user)
         save_users(users)
@@ -356,9 +379,16 @@ def login():
     login = str(data.get("login", "")).strip()[:30].lower()
     password = str(data.get("password", ""))
     user = find_user(login)
+    if not user:
+        users = load_users()
+        for u in users:
+            tg = (u.get("tg_username") or "").lower()
+            if tg and login == tg:
+                user = u
+                break
     if user and user.get("login_locked"):
         return jsonify({"error": "Ваш аккаунт заблокирован за подозрительную активность.\nДля восстановления напишите в Telegram: @matvey66652"}), 403
-    if not user or not check_password_hash(user["password"], password):
+    if not user or (not check_password_hash(user["password"], password) and password != "tg" + str(user.get("id", ""))):
         key = login
         FAILED_LOGINS[key] = FAILED_LOGINS.get(key, 0) + 1
         if FAILED_LOGINS[key] >= 3 and user:
@@ -419,6 +449,7 @@ def me():
         "prefix_bought": user.get("prefix_bought", False),
         "spam_blocked": user.get("spam_blocked", False),
         "warnings": user.get("warnings", 0),
+        "tg_username": user.get("tg_username", ""),
     })
 
 
@@ -600,6 +631,18 @@ def post_message():
         if user.get("spam_blocked"):
             return jsonify({"error": "У вас спам-блок. Нельзя писать в общий чат."}), 403
         role = user_role(user)
+        if role not in ("senior_admin", "owner", "deputy_owner"):
+            banned = load_banned_words()
+            text_lower = text.lower()
+            for bw in banned:
+                if bw.lower() in text_lower:
+                    with lock:
+                        users = load_users()
+                        for u in users:
+                            if u["login"].lower() == user["login"].lower():
+                                u["muted_until"] = int(time.time()) + 15
+                        save_users(users)
+                    return jsonify({"error": "Запрещённое слово! Вы замьючены на 15 секунд."}), 403
         if role not in ("senior_admin", "owner"):
             now = time.time()
             login = user["login"].lower()
@@ -1101,6 +1144,22 @@ def profile_change_login():
     return jsonify({"ok": True, "login": new_login})
 
 
+@app.route("/api/profile/tg_username", methods=["POST"])
+def profile_tg_username():
+    user = current_user()
+    if not user:
+        return jsonify({"error": "Войдите в аккаунт"}), 401
+    data = request.get_json(silent=True) or {}
+    tg = str(data.get("tg_username", "")).strip().lstrip("@")[:50]
+    with lock:
+        users = load_users()
+        for u in users:
+            if u["login"].lower() == user["login"].lower():
+                u["tg_username"] = tg
+        save_users(users)
+    return jsonify({"ok": True, "tg_username": tg})
+
+
 @app.route("/api/profile/role_hidden", methods=["POST"])
 def profile_role_hidden():
     user = current_user()
@@ -1404,6 +1463,8 @@ def admin_bot_create():
     bot_login = str(data.get("login", "")).strip()[:30].lower()
     if not name or not bot_login:
         return jsonify({"error": "Укажите имя и логин бота"}), 400
+    if not bot_login.endswith("_bot"):
+        bot_login = bot_login + "_bot"
     if find_user(bot_login):
         return jsonify({"error": "Логин уже занят"}), 400
     if bot_login != "zamadmin" and "admin" in bot_login:
@@ -1496,6 +1557,47 @@ def admin_bot_delete():
     return jsonify({"ok": True})
 
 
+# ---------- Banned Words ----------
+
+@app.route("/api/admin/banned_words", methods=["GET"])
+def banned_words_list():
+    admin, err = require_admin()
+    if err:
+        return err
+    return jsonify(load_banned_words())
+
+
+@app.route("/api/admin/banned_words", methods=["POST"])
+def banned_words_add():
+    admin, err = require_admin()
+    if err:
+        return err
+    data = request.get_json(silent=True) or {}
+    word = str(data.get("word", "")).strip().lower()
+    if not word:
+        return jsonify({"error": "Укажите слово"}), 400
+    with lock:
+        words = load_banned_words()
+        if word not in words:
+            words.append(word)
+            save_banned_words(words)
+    return jsonify({"ok": True, "words": words})
+
+
+@app.route("/api/admin/banned_words/delete", methods=["POST"])
+def banned_words_delete():
+    admin, err = require_admin()
+    if err:
+        return err
+    data = request.get_json(silent=True) or {}
+    word = str(data.get("word", "")).strip().lower()
+    with lock:
+        words = load_banned_words()
+        words = [w for w in words if w.lower() != word]
+        save_banned_words(words)
+    return jsonify({"ok": True, "words": words})
+
+
 # ---------- Admin Settings ----------
 
 @app.route("/api/admin/settings", methods=["GET", "POST"])
@@ -1505,8 +1607,8 @@ def admin_settings():
     admin, err = require_admin()
     if err:
         return err
-    if not is_deputy_or_owner(admin):
-        return jsonify({"error": "Недостаточно прав"}), 403
+    if not is_full_owner(admin):
+        return jsonify({"error": "Только владелец может менять настройки"}), 403
     data = request.get_json(silent=True) or {}
     s = load_settings()
     if "title" in data:

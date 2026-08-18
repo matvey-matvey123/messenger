@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Мессенджер</title>
+<title>Кокаколик</title>
 <link rel="icon" type="image/png" href="https://raw.githubusercontent.com/matvey-matvey123/messenger/master/ikon.png">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -354,8 +354,8 @@
   <!-- Auth -->
   <div id="authScreen" class="auth-screen">
     <div class="auth-card">
-      <div class="auth-logo"><img src="https://raw.githubusercontent.com/matvey-matvey123/messenger/master/ikon.png" alt="Мессенджер" style="width:80px;height:80px;border-radius:50%;"></div>
-      <h1>Мессенджер</h1>
+      <div class="auth-logo"><img src="https://raw.githubusercontent.com/matvey-matvey123/messenger/master/ikon.png" alt="Кокаколик" style="width:80px;height:80px;border-radius:50%;"></div>
+      <h1>Кокаколик</h1>
       <div class="tabs">
         <button id="tabLogin" class="tab active">Вход</button>
         <button id="tabRegister" class="tab">Регистрация</button>
@@ -383,7 +383,7 @@
         <button id="adminBtn" class="hbtn hidden">Админ-панель</button>
         <button id="applyAdminBtn" class="hbtn hidden" style="background:var(--accent);color:#fff;border:none;">Податься в администраторы</button>
         <button id="annBtn" class="hbtn" title="Объявления">📢</button>
-        <h1><span id="titleText">Мессенджер</span><button id="titleEdit" class="hidden" title="Изменить название">✎</button></h1>
+        <h1><span id="titleText">Кокаколик</span><button id="titleEdit" class="hidden" title="Изменить название">✎</button></h1>
       <div class="you">
         <span id="miniAv" class="mini-av" title="Профиль"></span>
         Вы: <span id="yourName">...</span>
@@ -402,7 +402,7 @@
           <span class="cl-info"><span class="cl-name">Общий чат</span></span>
         </div>
         <div id="privatesSection" class="sidebar-section hidden">
-          <div class="side-title">Личные чаты</div>
+          <div class="side-title" id="privatesTitle" style="cursor:pointer;" onclick="document.getElementById('privatesList').classList.toggle('hidden')">Личные чаты ▾</div>
           <div id="privatesList"></div>
         </div>
         <div id="groupsSection" class="sidebar-section hidden">
@@ -481,6 +481,14 @@
             <button id="setLoginSave" class="btn">Сменить</button>
           </div>
           <div id="setLoginMsg" class="prof-msg" style="font-size:12px;"></div>
+        </div>
+        <div class="prof-row">
+          <label>Telegram (@username)</label>
+          <div class="prof-actions" style="gap:8px;">
+            <input id="setTgUsername" placeholder="Ваш TG юзернейм" style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);padding:10px 12px;font-size:14px;outline:none;">
+            <button id="setTgSave" class="btn">Сохранить</button>
+          </div>
+          <div id="setTgMsg" class="prof-msg" style="font-size:12px;"></div>
         </div>
         <div class="prof-row">
           <label>Смена пароля</label>
@@ -707,6 +715,10 @@
             <div id="upExtension" style="font-size:14px;">—</div>
           </div>
           <div class="prof-row">
+            <label>Telegram</label>
+            <div id="upTgUsername" style="font-size:14px;">—</div>
+          </div>
+          <div class="prof-row">
             <label>Статус</label>
             <div id="upMuteStatus" style="font-size:14px;"></div>
           </div>
@@ -751,7 +763,7 @@
 
   let me = null;
   let userList = [];
-  let title = 'Мессенджер';
+  let title = 'Кокаколик';
   let groupCall = null;
   let currentChat = { type: 'public' };
   let lastIds = { public: 0 };
@@ -837,7 +849,7 @@
     try {
       const data = await api('/api/me');
       if (data.authenticated) {
-        me = { login: data.login, name: data.name, is_admin: data.is_admin, is_owner: data.is_owner, role: data.role || '', avatar: data.avatar, role_hidden: data.role_hidden || false, is_bot: data.is_bot || false, cocacoliki: data.cocacoliki || 0, prefix_bought: data.prefix_bought || false, spam_blocked: data.spam_blocked || false, warnings: data.warnings || 0 };
+        me = { login: data.login, name: data.name, is_admin: data.is_admin, is_owner: data.is_owner, role: data.role || '', avatar: data.avatar, role_hidden: data.role_hidden || false, is_bot: data.is_bot || false, cocacoliki: data.cocacoliki || 0, prefix_bought: data.prefix_bought || false, spam_blocked: data.spam_blocked || false, warnings: data.warnings || 0, tg_username: data.tg_username || '' };
         showChat();
       } else showAuth();
     } catch (e) { showAuth(); }
@@ -1510,6 +1522,8 @@
     $('setCurPass').value = ''; $('setNewPass').value = '';
     $('setLogin').value = '';
     $('setLoginMsg').textContent = '';
+    $('setTgUsername').value = me.tg_username || '';
+    $('setTgMsg').textContent = '';
     $('settingsMsg').textContent = '';
     setTheme(localStorage.getItem('theme') || 'dark');
     $('roleHiddenBox').classList.toggle('hidden', !(me.is_owner || me.role === 'senior_admin'));
@@ -1575,6 +1589,18 @@
       $('yourName').textContent = me.name + ' (' + me.login + ')';
     } catch (err) { msg.style.color = 'var(--red)'; msg.textContent = err; }
   });
+  $('setTgSave').addEventListener('click', async () => {
+    const msg = $('setTgMsg');
+    msg.textContent = '';
+    msg.style.color = 'var(--green)';
+    const tg = $('setTgUsername').value.trim();
+    try {
+      await api('/api/profile/tg_username', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tg_username: tg }) });
+      me.tg_username = tg;
+      msg.textContent = tg ? 'TG юзернейм сохранён: @' + tg : 'TG юзернейм удалён';
+      $('setTgUsername').value = '';
+    } catch (err) { msg.style.color = 'var(--red)'; msg.textContent = err; }
+  });
   $('roleHiddenBtn').addEventListener('click', async () => {
     const msg = $('roleHiddenMsg');
     msg.textContent = '';
@@ -1625,6 +1651,7 @@
     else if (adminState.view === 'forgot_password') await renderAdminForgotPassword();
     else if (adminState.view === 'bots') await renderAdminBots();
     else if (adminState.view === 'settings') await renderAdminSettings();
+    else if (adminState.view === 'banned_words') await renderAdminBannedWords();
   }
 
   function adminTabs() {
@@ -1642,6 +1669,7 @@
     if (me.is_owner) mk('Заявки', 'applications');
     if (me.is_owner || me.role === 'deputy_owner') mk('Забыли пароль', 'forgot_password');
     if (me.is_owner || me.role === 'deputy_owner') mk('Боты', 'bots');
+    if (me.is_owner || me.role === 'deputy_owner' || me.role === 'senior_admin') mk('Запрещённое', 'banned_words');
     if (me.is_owner) mk('Настройки', 'settings');
     return bar;
   }
@@ -1934,7 +1962,7 @@
     lbl.style.marginBottom = '8px';
     lbl.style.fontWeight = '600';
     const inp = document.createElement('input');
-    inp.value = s.title || 'Мессенджер';
+    inp.value = s.title || 'Кокаколик';
     inp.style.cssText = 'width:100%;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);padding:10px 12px;font-size:14px;outline:none;margin-bottom:12px;';
     const btn = document.createElement('button');
     btn.className = 'btn green';
@@ -1956,6 +1984,55 @@
 
   let load_settings_cached = null;
   (async () => { try { load_settings_cached = await api('/api/admin/settings'); } catch(e) {} })();
+
+  async function renderAdminBannedWords() {
+    let words = [];
+    try { words = await api('/api/admin/banned_words'); }
+    catch (e) { elAdminContent.innerHTML = '<div class="admin-empty">' + e + '</div>'; return; }
+    elAdminContent.innerHTML = '';
+    elAdminContent.appendChild(adminTabs());
+    const addRow = document.createElement('div');
+    addRow.className = 'admin-user';
+    addRow.style.alignItems = 'flex-end';
+    const inp = document.createElement('input');
+    inp.placeholder = 'Запрещённое слово...';
+    inp.style.cssText = 'flex:1;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);padding:10px 12px;font-size:14px;outline:none;';
+    const addBtn = document.createElement('button');
+    addBtn.className = 'btn red'; addBtn.textContent = '+ Добавить';
+    addBtn.addEventListener('click', async () => {
+      const w = inp.value.trim().toLowerCase();
+      if (!w) return;
+      await api('/api/admin/banned_words', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ word: w }) });
+      inp.value = '';
+      renderAdminBannedWords();
+    });
+    addRow.appendChild(inp); addRow.appendChild(addBtn);
+    elAdminContent.appendChild(addRow);
+    const note = document.createElement('div');
+    note.style.cssText = 'font-size:12px;color:var(--muted);padding:4px 0 12px;';
+    note.textContent = 'При вводе запрещённого слова обычным пользователем сообщение удаляется и выдаётся мут на 15 секунд. Админы не наказываются.';
+    elAdminContent.appendChild(note);
+    if (!words.length) {
+      const empty = document.createElement('div');
+      empty.className = 'admin-empty'; empty.textContent = 'Нет запрещённых слов';
+      elAdminContent.appendChild(empty);
+      return;
+    }
+    for (const w of words) {
+      const row = document.createElement('div');
+      row.className = 'admin-user';
+      const nm = document.createElement('div');
+      nm.className = 'au-name'; nm.textContent = w;
+      const delBtn = document.createElement('button');
+      delBtn.className = 'btn red'; delBtn.textContent = '✕';
+      delBtn.addEventListener('click', async () => {
+        await api('/api/admin/banned_words/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ word: w }) });
+        renderAdminBannedWords();
+      });
+      row.appendChild(nm); row.appendChild(delBtn);
+      elAdminContent.appendChild(row);
+    }
+  }
 
   function jumpToMessage(c) {
     closeAdmin();
@@ -2844,6 +2921,7 @@
 
     $('upBusiness').textContent = u.prefix || '—';
     $('upExtension').textContent = u.extension || '—';
+    $('upTgUsername').textContent = u.tg_username ? '@' + u.tg_username : '—';
     $('upMuteStatus').innerHTML = u.muted
       ? '<span style="color:var(--red);">🔇 ' + formatMutedTime(u.muted_until) + '</span>'
       : '<span style="color:var(--muted);">Активен</span>';
