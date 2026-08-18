@@ -253,6 +253,7 @@ def public_info(u):
         "extension": u.get("extension", ""),
         "is_bot": is_bot,
         "role_hidden": hidden,
+        "cocacoliki": u.get("cocacoliki", 0),
     }
 
 
@@ -323,8 +324,24 @@ def login():
     login = str(data.get("login", "")).strip()[:30].lower()
     password = str(data.get("password", ""))
     user = find_user(login)
+    if user and user.get("login_locked"):
+        return jsonify({"error": "Ваш аккаунт заблокирован за подозрительную активность.\nДля восстановления напишите в Telegram: @matvey66652"}), 403
     if not user or not check_password_hash(user["password"], password):
+        key = login
+        FAILED_LOGINS[key] = FAILED_LOGINS.get(key, 0) + 1
+        if FAILED_LOGINS[key] >= 3 and user:
+            with lock:
+                users = load_users()
+                for u in users:
+                    if u["login"].lower() == login:
+                        u["login_locked"] = True
+                        u["failed_attempts"] = FAILED_LOGINS[key]
+                        u["locked_reason"] = "3 неверных пароля подряд"
+                save_users(users)
+            FAILED_LOGINS[key] = 0
+            return jsonify({"error": "Ваш аккаунт заблокирован за подозрительную активность.\nДля восстановления напишите в Telegram: @matvey66652"}), 403
         return jsonify({"error": "Неверный логин или пароль"}), 400
+    FAILED_LOGINS[login] = 0
     session["login"] = user["login"]
     last_seen[user["login"]] = time.time()
     return jsonify({
@@ -366,6 +383,8 @@ def me():
         "prefix": user.get("prefix", ""),
         "extension": user.get("extension", ""),
         "is_bot": user.get("is_bot", False),
+        "cocacoliki": user.get("cocacoliki", 0),
+        "prefix_bought": user.get("prefix_bought", False),
     })
 
 
@@ -1004,6 +1023,366 @@ def process_application():
                 save_applications(apps)
                 return jsonify({"ok": True})
     return jsonify({"error": "Заявка не найдена"}), 404
+
+
+# ---------- Cocacoliki ----------
+
+@app.route("/api/admin/give_cocacoliki", methods=["POST"])
+def give_cocacoliki():
+    admin, err = require_admin()
+    if err:
+        return err
+    if not (is_owner_login(admin["login"]) or user_role(admin) == "senior_admin"):
+        return jsonify({"error": "Недостаточно прав"}), 403
+    data = request.get_json(silent=True) or {}
+    login = str(data.get("login", "")).strip().lower()
+    amount = int(data.get("amount", 0))
+    if not login or amount <= 0 or amount > 1000:
+        return jsonify({"error": "Неверные данные"}), 400
+    target = find_user(login)
+    if not target:
+        return jsonify({"error": "Пользователь не найден"}), 404
+    with lock:
+        users = load_users()
+        for u in users:
+            if u["login"].lower() == login:
+                u["cocacoliki"] = u.get("cocacoliki", 0) + amount
+        save_users(users)
+    return jsonify({"ok": True, "cocacoliki": target.get("cocacoliki", 0) + amount})
+
+
+@app.route("/api/shop/buy_unmute", methods=["POST"])
+def shop_buy_unmute():
+    user = current_user()
+    if not user:
+        return jsonify({"error": "Войдите в аккаунт"}), 401
+    if user.get("cocacoliki", 0) < 30:
+        return jsonify({"error": "Нужно 30 кока-коликов (у вас " + str(user.get("cocacoliki", 0)) + ")"}), 400
+    if not user.get("muted_until") or user["muted_until"] <= time.time():
+        return jsonify({"error": "Вы не замучены"}), 400
+    with lock:
+        users = load_users()
+        for u in users:
+            if u["login"].lower() == user["login"].lower():
+                u["cocacoliki"] = u.get("cocacoliki", 0) - 30
+                u["muted_until"] = 0
+        save_users(users)
+    return jsonify({"ok": True, "message": "Мут снят за 30 кока-коликов!"})
+
+
+@app.route("/api/shop/buy_prefix", methods=["POST"])
+def shop_buy_prefix():
+    user = current_user()
+    if not user:
+        return jsonify({"error": "Войдите в аккаунт"}), 401
+    if user.get("cocacoliki", 0) < 60:
+        return jsonify({"error": "Нужно 60 кока-коликов (у вас " + str(user.get("cocacoliki", 0)) + ")"}), 400
+    data = request.get_json(silent=True) or {}
+    prefix = str(data.get("prefix", "")).strip()[:50]
+    if not prefix:
+        return jsonify({"error": "Укажите префикс"}), 400
+    with lock:
+        users = load_users()
+        for u in users:
+            if u["login"].lower() == user["login"].lower():
+                u["cocacoliki"] = u.get("cocacoliki", 0) - 60
+                u["prefix"] = prefix
+                u["prefix_bought"] = True
+        save_users(users)
+    return jsonify({"ok": True, "message": "Префикс «" + prefix + "» куплен за 60 кока-коликов!", "prefix": prefix})
+
+
+# ---------- Coins earning ----------
+
+@app.route("/api/earn/tip", methods=["POST"])
+def earn_tip():
+    user = current_user()
+    if not user:
+        return jsonify({"error": "Войдите в аккаунт"}), 401
+    data = request.get_json(silent=True) or {}
+    login = str(data.get("login", "")).strip().lower()
+    amount = int(data.get("amount", 0))
+    if not login or login == user["login"].lower():
+        return jsonify({"error": "Нельзя отправить чаевые себе"}), 400
+    if amount <= 0 or amount > 50:
+        return jsonify({"error": "От 1 до 50 кока-коликов"}), 400
+    if user.get("cocacoliki", 0) < amount:
+        return jsonify({"error": "Недостаточно кока-коликов"}), 400
+    target = find_user(login)
+    if not target:
+        return jsonify({"error": "Пользователь не найден"}), 404
+    with lock:
+        users = load_users()
+        for u in users:
+            if u["login"].lower() == user["login"].lower():
+                u["cocacoliki"] = u.get("cocacoliki", 0) - amount
+            elif u["login"].lower() == login:
+                u["cocacoliki"] = u.get("cocacoliki", 0) + amount
+        save_users(users)
+    return jsonify({"ok": True, "message": "Вы отправили " + str(amount) + " кока-коликов @" + login})
+
+
+# ---------- Groups ----------
+
+GROUPS_FILE = os.path.join(APP_DIR, "groups.json")
+
+def load_groups():
+    if not os.path.exists(GROUPS_FILE):
+        return []
+    try:
+        with open(GROUPS_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return []
+
+def save_groups(items):
+    with open(GROUPS_FILE, "w", encoding="utf-8") as f:
+        json.dump(items, f, ensure_ascii=False, indent=2)
+
+
+@app.route("/api/groups", methods=["GET"])
+def get_groups():
+    user = current_user()
+    if not user:
+        return jsonify({"error": "Войдите в аккаунт"}), 401
+    groups = load_groups()
+    my_groups = [g for g in groups if user["login"].lower() in [m.lower() for m in g.get("members", [])]]
+    result = []
+    for g in my_groups:
+        members_info = []
+        for m in g.get("members", []):
+            u = find_user(m)
+            members_info.append({"login": m, "name": u["name"] if u else m, "admin": m.lower() in [a.lower() for a in g.get("admins", [])]})
+        result.append({
+            "id": g["id"],
+            "name": g["name"],
+            "owner": g["owner"],
+            "members": members_info,
+            "admins": g.get("admins", []),
+            "created": g.get("created", 0),
+        })
+    return jsonify(result)
+
+
+@app.route("/api/groups/create", methods=["POST"])
+def create_group():
+    user = current_user()
+    if not user:
+        return jsonify({"error": "Войдите в аккаунт"}), 401
+    if not is_owner_login(user["login"]):
+        return jsonify({"error": "Только владелец может создавать группы"}), 403
+    data = request.get_json(silent=True) or {}
+    name = str(data.get("name", "")).strip()[:50]
+    members = data.get("members", [])
+    if not name:
+        return jsonify({"error": "Укажите название группы"}), 400
+    members = list(set([m.strip().lower() for m in members if find_user(m.strip())]))
+    if user["login"].lower() not in members:
+        members.append(user["login"].lower())
+    with lock:
+        groups = load_groups()
+        gid = max([g["id"] for g in groups], default=0) + 1
+        group = {
+            "id": gid,
+            "name": name,
+            "owner": user["login"].lower(),
+            "members": members,
+            "admins": [user["login"].lower()],
+            "created": int(time.time()),
+        }
+        groups.append(group)
+        save_groups(groups)
+    return jsonify({"ok": True, "id": gid})
+
+
+@app.route("/api/groups/update", methods=["POST"])
+def update_group():
+    user = current_user()
+    if not user:
+        return jsonify({"error": "Войдите в аккаунт"}), 401
+    data = request.get_json(silent=True) or {}
+    gid = int(data.get("id", 0))
+    if not gid:
+        return jsonify({"error": "Укажите ID группы"}), 400
+    with lock:
+        groups = load_groups()
+        for g in groups:
+            if g["id"] == gid:
+                if user["login"].lower() != g["owner"] and user["login"].lower() not in [a.lower() for a in g.get("admins", [])]:
+                    return jsonify({"error": "Нет прав"}), 403
+                if "name" in data:
+                    g["name"] = str(data["name"]).strip()[:50]
+                if "members" in data:
+                    new_members = list(set([m.strip().lower() for m in data["members"] if find_user(m.strip())]))
+                    if g["owner"].lower() not in new_members:
+                        new_members.append(g["owner"].lower())
+                    g["members"] = new_members
+                if "admins" in data:
+                    g["admins"] = list(set([a.strip().lower() for a in data["admins"] if a.strip().lower() in [m.lower() for m in g["members"]]]))
+                save_groups(groups)
+                return jsonify({"ok": True})
+    return jsonify({"error": "Группа не найдена"}), 404
+
+
+@app.route("/api/groups/delete", methods=["POST"])
+def delete_group():
+    user = current_user()
+    if not user:
+        return jsonify({"error": "Войдите в аккаунт"}), 401
+    data = request.get_json(silent=True) or {}
+    gid = int(data.get("id", 0))
+    if not is_owner_login(user["login"]):
+        return jsonify({"error": "Только владелец"}), 403
+    with lock:
+        groups = load_groups()
+        groups = [g for g in groups if g["id"] != gid]
+        save_groups(groups)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/groups/message", methods=["POST"])
+def group_message():
+    user = current_user()
+    if not user:
+        return jsonify({"error": "Войдите в аккаунт"}), 401
+    data = request.get_json(silent=True) or {}
+    gid = int(data.get("id", 0))
+    text = str(data.get("text", "")).strip()[:1000]
+    if not text:
+        return jsonify({"error": "Пустое сообщение"}), 400
+    with lock:
+        groups = load_groups()
+        for g in groups:
+            if g["id"] == gid:
+                if user["login"].lower() not in [m.lower() for m in g["members"]]:
+                    return jsonify({"error": "Вы не участник группы"}), 403
+                msgs = load_messages()
+                msg = {
+                    "id": max([m["id"] for m in msgs], default=0) + 1,
+                    "chat": "group:" + str(gid),
+                    "login": user["login"],
+                    "name": "Аноним" if user.get("is_bot") else user["name"],
+                    "admin": user.get("is_admin", False),
+                    "role": user_role(user),
+                    "type": "text",
+                    "text": text,
+                    "time": int(time.time()),
+                    "read_by": [],
+                }
+                msgs.append(msg)
+                save_messages(msgs)
+                return jsonify(msg)
+    return jsonify({"error": "Группа не найдена"}), 404
+
+
+@app.route("/api/groups/messages", methods=["GET"])
+def group_messages():
+    user = current_user()
+    if not user:
+        return jsonify({"error": "Войдите в аккаунт"}), 401
+    gid = request.args.get("id", 0, type=int)
+    if not gid:
+        return jsonify([]), 200
+    with lock:
+        groups = load_groups()
+        for g in groups:
+            if g["id"] == gid:
+                if user["login"].lower() not in [m.lower() for m in g["members"]]:
+                    return jsonify([]), 200
+                msgs = load_messages()
+                result = [m for m in msgs if m.get("chat") == "group:" + str(gid)]
+                result.sort(key=lambda m: m["id"])
+                after = request.args.get("after", 0, type=int)
+                if after:
+                    result = [m for m in result if m["id"] > after]
+                return jsonify(result[-200:])
+    return jsonify([]), 200
+
+
+# ---------- Forgot password ----------
+
+FAILED_LOGINS = {}
+
+@app.route("/api/admin/forgot_password", methods=["GET"])
+def admin_forgot_password():
+    user = current_user()
+    if not user or not is_owner_login(user["login"]):
+        return jsonify({"error": "Только владелец"}), 403
+    with lock:
+        users = load_users()
+    blocked = []
+    for u in users:
+        if u.get("login_locked"):
+            blocked.append({
+                "login": u["login"],
+                "name": u["name"],
+                "locked_reason": u.get("locked_reason", ""),
+                "failed_attempts": u.get("failed_attempts", 0),
+            })
+    return jsonify(blocked)
+
+
+@app.route("/api/admin/unlock_user", methods=["POST"])
+def admin_unlock_user():
+    user = current_user()
+    if not user or not is_owner_login(user["login"]):
+        return jsonify({"error": "Только владелец"}), 403
+    data = request.get_json(silent=True) or {}
+    login = str(data.get("login", "")).strip().lower()
+    if not login:
+        return jsonify({"error": "Укажите логин"}), 400
+    with lock:
+        users = load_users()
+        for u in users:
+            if u["login"].lower() == login:
+                u["login_locked"] = False
+                u["failed_attempts"] = 0
+                u["locked_reason"] = ""
+        save_users(users)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/admin/reset_password", methods=["POST"])
+def admin_reset_password():
+    user = current_user()
+    if not user or not is_owner_login(user["login"]):
+        return jsonify({"error": "Только владелец"}), 403
+    data = request.get_json(silent=True) or {}
+    login = str(data.get("login", "")).strip().lower()
+    new_pass = str(data.get("password", "")).strip()
+    if not login:
+        return jsonify({"error": "Укажите логин"}), 400
+    if len(new_pass) < 4:
+        return jsonify({"error": "Пароль минимум 4 символа"}), 400
+    with lock:
+        users = load_users()
+        for u in users:
+            if u["login"].lower() == login:
+                u["password"] = generate_password_hash(new_pass)
+                u["login_locked"] = False
+                u["failed_attempts"] = 0
+                u["locked_reason"] = ""
+        save_users(users)
+    return jsonify({"ok": True, "message": "Пароль @" + login + " сброшен"})
+
+
+@app.route("/api/admin/block_login", methods=["POST"])
+def admin_block_login():
+    user = current_user()
+    if not user or not is_owner_login(user["login"]):
+        return jsonify({"error": "Только владелец"}), 403
+    data = request.get_json(silent=True) or {}
+    login = str(data.get("login", "")).strip().lower()
+    if not login:
+        return jsonify({"error": "Укажите логин"}), 400
+    with lock:
+        users = load_users()
+        for u in users:
+            if u["login"].lower() == login:
+                u["login_locked"] = True
+                u["locked_reason"] = "Заблокировано владельцем"
+        save_users(users)
+    return jsonify({"ok": True})
 
 
 @app.route("/api/admin/prefix", methods=["POST"])

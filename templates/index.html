@@ -387,6 +387,7 @@
       <div class="you">
         <span id="miniAv" class="mini-av" title="Профиль"></span>
         Вы: <span id="yourName">...</span>
+        <button id="coinsBtn" class="hbtn" title="Кока-колики">🪙 <span id="coinsCount">0</span></button>
         <button id="rulesBtn" class="hbtn" title="Правила чата">📜 Правила</button>
         <button id="settingsBtn" class="hbtn" title="Настройки">⚙</button>
         <button id="profileBtn" class="hbtn">Профиль</button>
@@ -403,6 +404,10 @@
         <div id="privatesSection" class="sidebar-section hidden">
           <div class="side-title">Личные чаты</div>
           <div id="privatesList"></div>
+        </div>
+        <div id="groupsSection" class="sidebar-section hidden">
+          <div class="side-title">Группы</div>
+          <div id="groupsList"></div>
         </div>
         <div class="side-title">Пользователи</div>
         <input id="search" placeholder="Поиск по логину...">
@@ -560,6 +565,73 @@
     </div>
   </div>
 
+  <!-- Coins Modal -->
+  <div id="coinsOverlay" class="overlay hidden">
+    <div class="admin-box prof-box">
+      <header><h2>Кока-колики</h2><button id="coinsClose" class="xbtn">×</button></header>
+      <div class="admin-content">
+        <div class="prof-row" style="text-align:center;">
+          <div style="font-size:48px;">🪙</div>
+          <div style="font-size:24px;font-weight:700;" id="coinsBalance">0</div>
+          <div style="color:var(--muted);font-size:13px;">кока-коликов</div>
+        </div>
+        <div class="prof-row">
+          <label>Магазин</label>
+          <div class="prof-actions" style="flex-direction:column;gap:10px;">
+            <button id="shopBuyUnmute" class="btn" style="width:100%;justify-content:center;">🔇 Размут — 30 🪙</button>
+            <button id="shopBuyPrefix" class="btn" style="width:100%;justify-content:center;">🏷 Купить префикс — 60 🪙</button>
+          </div>
+        </div>
+        <div class="prof-row">
+          <label>Как заработать кока-колики?</label>
+          <div style="font-size:13px;color:var(--muted);line-height:1.5;">
+            • Чаевые от других пользователей<br>
+            • Награда от владельца или старшего админа<br>
+            • За хорошую работу бизнеса
+          </div>
+        </div>
+        <div id="coinsMsg" class="prof-msg"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Groups Modal -->
+  <div id="groupsOverlay" class="overlay hidden">
+    <div class="admin-box prof-box" style="max-width:520px;">
+      <header><h2 id="groupsTitle">Группы</h2><button id="groupsClose" class="xbtn">×</button></header>
+      <div class="admin-content">
+        <div id="groupsManageSection">
+          <div class="prof-row">
+            <label>Мои группы</label>
+            <div id="myGroupsList"></div>
+          </div>
+          <div id="newGroupSection" class="prof-row hidden">
+            <label>Название группы</label>
+            <input id="groupNameInput" placeholder="Название" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);padding:10px 12px;font-size:14px;outline:none;">
+            <label>Участники (через запятую)</label>
+            <input id="groupMembersInput" placeholder="bob, charlie" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);padding:10px 12px;font-size:14px;outline:none;">
+            <div class="prof-actions">
+              <button id="groupCreateBtn" class="btn green">Создать</button>
+            </div>
+          </div>
+        </div>
+        <div id="groupChatSection" class="hidden">
+          <div class="prof-row">
+            <button id="groupBackBtn" class="btn">← Назад</button>
+            <div id="groupChatName" style="font-weight:700;font-size:16px;"></div>
+            <div id="groupMembersList" style="font-size:12px;color:var(--muted);margin-bottom:8px;"></div>
+            <div id="groupMessages" style="max-height:300px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;padding:8px;min-height:100px;margin-bottom:8px;"></div>
+            <div class="prof-actions" style="gap:4px;">
+              <input id="groupMsgInput" placeholder="Сообщение..." style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);padding:10px 12px;font-size:14px;outline:none;">
+              <button id="groupMsgSend" class="btn green">→</button>
+            </div>
+          </div>
+        </div>
+        <div id="groupsMsg" class="prof-msg"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- Application Form -->
   <div id="applyOverlay" class="overlay hidden">
     <div class="admin-box prof-box">
@@ -712,6 +784,7 @@
     $('titleEdit').classList.toggle('hidden', !me.is_owner);
     $('titleText').textContent = title;
     document.title = title;
+    $('coinsCount').textContent = me.cocacoliki || 0;
     elInput.focus();
   }
 
@@ -732,7 +805,7 @@
     try {
       const data = await api('/api/me');
       if (data.authenticated) {
-        me = { login: data.login, name: data.name, is_admin: data.is_admin, is_owner: data.is_owner, role: data.role || '', avatar: data.avatar, role_hidden: data.role_hidden || false, is_bot: data.is_bot || false };
+        me = { login: data.login, name: data.name, is_admin: data.is_admin, is_owner: data.is_owner, role: data.role || '', avatar: data.avatar, role_hidden: data.role_hidden || false, is_bot: data.is_bot || false, cocacoliki: data.cocacoliki || 0, prefix_bought: data.prefix_bought || false };
         showChat();
       } else showAuth();
     } catch (e) { showAuth(); }
@@ -1508,6 +1581,7 @@
     else if (adminState.view === 'conv') await renderAdminConversation(adminState.user, adminState.partner);
     else if (adminState.view === 'complaints') await renderAdminComplaints();
     else if (adminState.view === 'applications') await renderAdminApplications();
+    else if (adminState.view === 'forgot_password') await renderAdminForgotPassword();
   }
 
   function adminTabs() {
@@ -1523,6 +1597,7 @@
     mk('Пользователи', 'users');
     if (canComplaints()) mk('Жалобы', 'complaints');
     if (me.is_owner) mk('Заявки', 'applications');
+    if (me.is_owner) mk('Забыли пароль', 'forgot_password');
     return bar;
   }
 
@@ -1662,6 +1737,62 @@
         });
         actions.appendChild(reject);
       }
+      row.appendChild(info); row.appendChild(actions);
+      elAdminContent.appendChild(row);
+    }
+  }
+
+  async function renderAdminForgotPassword() {
+    let list = [];
+    try { list = await api('/api/admin/forgot_password'); }
+    catch (e) { elAdminContent.innerHTML = '<div class="admin-empty">' + e + '</div>'; return; }
+    elAdminContent.innerHTML = '';
+    elAdminContent.appendChild(adminTabs());
+    if (!list.length) {
+      const empty = document.createElement('div');
+      empty.className = 'admin-empty'; empty.textContent = 'Нет заблокированных аккаунтов';
+      elAdminContent.appendChild(empty);
+      return;
+    }
+    for (const u of list) {
+      const row = document.createElement('div');
+      row.className = 'admin-user';
+      const info = document.createElement('div');
+      info.className = 'au-info';
+      const nm = document.createElement('div');
+      nm.className = 'au-name'; nm.textContent = u.name + ' (@' + u.login + ')';
+      const lg = document.createElement('div');
+      lg.className = 'au-login';
+      lg.textContent = 'Причина: ' + (u.locked_reason || 'Неизвестно') + ' · Попыток: ' + u.failed_attempts;
+      info.appendChild(nm); info.appendChild(lg);
+      const actions = document.createElement('div');
+      actions.className = 'au-actions';
+      const resetBtn = document.createElement('button');
+      resetBtn.className = 'btn green'; resetBtn.textContent = '🔑 Изменить пароль';
+      resetBtn.addEventListener('click', async () => {
+        const newPass = prompt('Новый пароль для @' + u.login + ':');
+        if (!newPass || newPass.length < 4) { alert('Минимум 4 символа'); return; }
+        try {
+          await api('/api/admin/reset_password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: u.login, password: newPass }) });
+          renderAdminForgotPassword();
+        } catch (err) { alert(err); }
+      });
+      actions.appendChild(resetBtn);
+      const unlockBtn = document.createElement('button');
+      unlockBtn.className = 'btn'; unlockBtn.textContent = '🔓 Разблокировать';
+      unlockBtn.addEventListener('click', async () => {
+        await api('/api/admin/unlock_user', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: u.login }) });
+        renderAdminForgotPassword();
+      });
+      actions.appendChild(unlockBtn);
+      const blockBtn = document.createElement('button');
+      blockBtn.className = 'btn red'; blockBtn.textContent = '🚫 Запретить вход';
+      blockBtn.addEventListener('click', async () => {
+        if (!confirm('Запретить вход @' + u.login + '?')) return;
+        await api('/api/admin/block_login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: u.login }) });
+        renderAdminForgotPassword();
+      });
+      actions.appendChild(blockBtn);
       row.appendChild(info); row.appendChild(actions);
       elAdminContent.appendChild(row);
     }
@@ -1905,6 +2036,132 @@
       setTimeout(() => $('applyOverlay').classList.add('hidden'), 3000);
     } catch (err) { msg.style.color = 'var(--red)'; msg.textContent = err; }
   });
+
+  // ---------- Coins / Shop ----------
+  $('coinsBtn').addEventListener('click', async () => {
+    $('coinsBalance').textContent = me.cocacoliki || 0;
+    $('coinsMsg').textContent = '';
+    $('coinsOverlay').classList.remove('hidden');
+  });
+  $('coinsClose').addEventListener('click', () => $('coinsOverlay').classList.add('hidden'));
+  $('shopBuyUnmute').addEventListener('click', async () => {
+    const msg = $('coinsMsg');
+    try {
+      const r = await api('/api/shop/buy_unmute', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      me.cocacoliki = (me.cocacoliki || 0) - 30;
+      $('coinsCount').textContent = me.cocacoliki;
+      $('coinsBalance').textContent = me.cocacoliki;
+      msg.style.color = 'var(--green)'; msg.textContent = r.message;
+    } catch (err) { msg.style.color = 'var(--red)'; msg.textContent = err; }
+  });
+  $('shopBuyPrefix').addEventListener('click', async () => {
+    const msg = $('coinsMsg');
+    if (me.prefix_bought) { msg.style.color = 'var(--red)'; msg.textContent = 'Вы уже купили префикс (можно 1 раз)'; return; }
+    const prefix = prompt('Введите префикс (напр. Яндекс Такси):');
+    if (!prefix || !prefix.trim()) return;
+    try {
+      const r = await api('/api/shop/buy_prefix', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prefix: prefix.trim() }) });
+      me.cocacoliki = (me.cocacoliki || 0) - 60;
+      me.prefix_bought = true;
+      me.prefix = r.prefix;
+      $('coinsCount').textContent = me.cocacoliki;
+      $('coinsBalance').textContent = me.cocacoliki;
+      msg.style.color = 'var(--green)'; msg.textContent = r.message;
+    } catch (err) { msg.style.color = 'var(--red)'; msg.textContent = err; }
+  });
+
+  // ---------- Groups ----------
+  let currentGroupId = null;
+  let pollGroupTimer = null;
+
+  function showGroupsModal() {
+    $('groupsOverlay').classList.remove('hidden');
+    $('groupsManageSection').classList.remove('hidden');
+    $('groupChatSection').classList.add('hidden');
+    $('newGroupSection').classList.toggle('hidden', !me.is_owner);
+    loadMyGroups();
+  }
+  
+  $('groupsClose').addEventListener('click', () => { $('groupsOverlay').classList.add('hidden'); clearInterval(pollGroupTimer); });
+  $('groupBackBtn').addEventListener('click', () => {
+    clearInterval(pollGroupTimer);
+    $('groupsManageSection').classList.remove('hidden');
+    $('groupChatSection').classList.add('hidden');
+    loadMyGroups();
+  });
+  $('groupCreateBtn').addEventListener('click', async () => {
+    const msg = $('groupsMsg');
+    const name = $('groupNameInput').value.trim();
+    const members = $('groupMembersInput').value.split(',').map(s => s.trim()).filter(Boolean);
+    if (!name) { msg.style.color = 'var(--red)'; msg.textContent = 'Введите название'; return; }
+    try {
+      await api('/api/groups/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, members }) });
+      $('groupNameInput').value = ''; $('groupMembersInput').value = '';
+      msg.style.color = 'var(--green)'; msg.textContent = 'Группа создана!';
+      loadMyGroups();
+    } catch (err) { msg.style.color = 'var(--red)'; msg.textContent = err; }
+  });
+
+  async function loadMyGroups() {
+    const list = $('myGroupsList');
+    list.innerHTML = '';
+    try {
+      const groups = await api('/api/groups');
+      if (!groups.length) { list.innerHTML = '<div class="empty" style="padding:8px;">Нет групп</div>'; return; }
+      for (const g of groups) {
+        const btn = document.createElement('button');
+        btn.className = 'btn'; btn.style.cssText = 'width:100%;justify-content:flex-start;margin-bottom:4px;';
+        btn.textContent = '👥 ' + g.name + ' (' + g.members.length + ')';
+        btn.addEventListener('click', () => openGroupChat(g));
+        list.appendChild(btn);
+      }
+    } catch (e) { list.innerHTML = '<div style="color:var(--red);padding:8px;">' + e + '</div>'; }
+  }
+
+  function openGroupChat(g) {
+    currentGroupId = g.id;
+    $('groupsManageSection').classList.add('hidden');
+    $('groupChatSection').classList.remove('hidden');
+    $('groupChatName').textContent = g.name;
+    const adminLogins = g.admins.map(a => a.toLowerCase());
+    $('groupMembersList').textContent = g.members.map(m => (m.admin || adminLogins.includes(m.login.toLowerCase()) ? '⭐ ' : '') + m.name).join(', ');
+    pollGroupMessages(g);
+    clearInterval(pollGroupTimer);
+    pollGroupTimer = setInterval(() => pollGroupMessages(g), 1000);
+  }
+
+  async function pollGroupMessages(g) {
+    try {
+      const msgs = await api('/api/groups/messages?id=' + g.id);
+      const el = $('groupMessages');
+      const wasAtBottom = el.scrollHeight - el.scrollTop <= el.clientHeight + 30;
+      el.innerHTML = '';
+      for (const m of msgs) {
+        const d = document.createElement('div');
+        d.style.cssText = 'margin-bottom:6px;font-size:13px;';
+        const name = document.createElement('strong');
+        name.style.color = m.login === me.login ? 'var(--accent)' : 'var(--text)';
+        name.textContent = m.name + ': ';
+        d.appendChild(name);
+        d.appendChild(document.createTextNode(m.text));
+        el.appendChild(d);
+      }
+      if (wasAtBottom) el.scrollTop = el.scrollHeight;
+    } catch (e) {}
+  }
+
+  $('groupMsgSend').addEventListener('click', sendGroupMsg);
+  $('groupMsgInput').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendGroupMsg(); } });
+
+  async function sendGroupMsg() {
+    const input = $('groupMsgInput');
+    const text = input.value.trim();
+    if (!text || !currentGroupId) return;
+    input.value = '';
+    try {
+      await api('/api/groups/message', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: currentGroupId, text }) });
+    } catch (e) {}
+  }
 
   // ---------- Calls ----------
   let call = null;
@@ -2373,6 +2630,30 @@
     }
   }
 
+  async function pollGroups() {
+    try {
+      const groups = await api('/api/groups');
+      renderSidebarGroups(groups);
+    } catch (e) {}
+  }
+
+  function renderSidebarGroups(groups) {
+    if (!groups.length) {
+      $('groupsSection').classList.add('hidden');
+      $('groupsList').innerHTML = '';
+      return;
+    }
+    $('groupsSection').classList.remove('hidden');
+    $('groupsList').innerHTML = '';
+    for (const g of groups) {
+      const btn = document.createElement('button');
+      btn.className = 'chat-link';
+      btn.innerHTML = '<span class="cl-icon">👥</span><span class="cl-info"><span class="cl-name">' + g.name + '</span><span class="cl-preview">' + g.members.length + ' участников</span></span>';
+      btn.addEventListener('click', () => showGroupsModal());
+      $('groupsList').appendChild(btn);
+    }
+  }
+
   // ---------- User Profile ----------
   let upUser = null;
 
@@ -2499,6 +2780,40 @@
           };
           actionsEl.appendChild(hideRoleBtn);
         }
+        if (u.login !== me.login && (me.is_owner || me.role === 'senior_admin')) {
+          const giftBtn = document.createElement('button');
+          giftBtn.className = 'btn';
+          giftBtn.textContent = '🪙 Дать кока-колики';
+          giftBtn.onclick = async () => {
+            const amount = prompt('Сколько кока-коликов дать @' + u.login + '?', '10');
+            const a = parseInt(amount, 10);
+            if (!a || a < 1) return;
+            try {
+              await api('/api/admin/give_cocacoliki', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: u.login, amount: a }) });
+              u.cocacoliki = (u.cocacoliki || 0) + a;
+              showUserProfile(u); renderUsers();
+            } catch (err) { alert(err); }
+          };
+          actionsEl.appendChild(giftBtn);
+        }
+        if (u.login !== me.login && !u.is_admin && !u.is_owner) {
+          const tipBtn = document.createElement('button');
+          tipBtn.className = 'btn';
+          tipBtn.textContent = '☕ Чаевые';
+          tipBtn.onclick = async () => {
+            const amount = prompt('Отправить чаевые @' + u.login + '? Сколько кока-коликов? (1–50)', '5');
+            const a = parseInt(amount, 10);
+            if (!a || a < 1) return;
+            try {
+              const r = await api('/api/earn/tip', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: u.login, amount: a }) });
+              me.cocacoliki = (me.cocacoliki || 0) - a;
+              $('coinsCount').textContent = me.cocacoliki;
+              alert(r.message);
+              renderUsers();
+            } catch (err) { alert(err); }
+          };
+          actionsEl.appendChild(tipBtn);
+        }
       }
     }
 
@@ -2564,6 +2879,7 @@
     pollUsers();
     pollCalls();
     pollPrivates();
+    pollGroups();
   }, 1000);
 })();
 </script>
