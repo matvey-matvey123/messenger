@@ -16,6 +16,7 @@ COMPLAINTS_FILE = os.path.join(APP_DIR, "complaints.json")
 SETTINGS_FILE = os.path.join(APP_DIR, "settings.json")
 ANNOUNCEMENTS_FILE = os.path.join(APP_DIR, "announcements.json")
 APPLICATIONS_FILE = os.path.join(APP_DIR, "applications.json")
+BOTS_FILE = os.path.join(APP_DIR, "bots.json")
 UPLOAD_DIR = os.path.join(APP_DIR, "uploads")
 AVATAR_DIR = os.path.join(UPLOAD_DIR, "avatars")
 MEDIA_DIR = os.path.join(UPLOAD_DIR, "media")
@@ -29,6 +30,7 @@ app.config["MAX_CONTENT_LENGTH"] = 15 * 1024 * 1024
 lock = threading.Lock()
 last_seen = {}
 msg_timestamps = {}
+free_today = {}
 SPAM_LIMIT = 4
 SPAM_WINDOW = 120
 SPAM_MUTE_MINUTES = 60
@@ -131,6 +133,21 @@ def load_applications():
 
 def save_applications(items):
     with open(APPLICATIONS_FILE, "w", encoding="utf-8") as f:
+        json.dump(items, f, ensure_ascii=False, indent=2)
+
+
+def load_bots():
+    if not os.path.exists(BOTS_FILE):
+        return []
+    try:
+        with open(BOTS_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return []
+
+
+def save_bots(items):
+    with open(BOTS_FILE, "w", encoding="utf-8") as f:
         json.dump(items, f, ensure_ascii=False, indent=2)
 
 
@@ -254,6 +271,8 @@ def public_info(u):
         "is_bot": is_bot,
         "role_hidden": hidden,
         "cocacoliki": u.get("cocacoliki", 0),
+        "spam_blocked": u.get("spam_blocked", False),
+        "warnings": u.get("warnings", 0),
     }
 
 
@@ -297,6 +316,8 @@ def register():
         return jsonify({"error": "Пароль слишком короткий (минимум 4 символа)"}), 400
     if find_user(login):
         return jsonify({"error": "Данный логин занят"}), 400
+    if login != "zamadmin" and "admin" in login:
+        return jsonify({"error": "Этот логин запрещён"}), 400
     ensure_owner()
     with lock:
         users = load_users()
@@ -385,6 +406,8 @@ def me():
         "is_bot": user.get("is_bot", False),
         "cocacoliki": user.get("cocacoliki", 0),
         "prefix_bought": user.get("prefix_bought", False),
+        "spam_blocked": user.get("spam_blocked", False),
+        "warnings": user.get("warnings", 0),
     })
 
 
@@ -550,6 +573,11 @@ def post_message():
     chat = data.get("chat", "public")
     target = None
 
+    if chat == "public" or chat == "public":
+        user_cmd = handle_user_command(user, text)
+        if user_cmd:
+            return jsonify(user_cmd)
+
     if (is_owner_login(user["login"]) or user_role(user) == "senior_admin") and chat == "public":
         cmd_result = handle_owner_command(user, text)
         if cmd_result:
@@ -558,6 +586,8 @@ def post_message():
     if chat == "public":
         if user.get("muted_until") and user["muted_until"] > time.time():
             return jsonify({"error": "Вы замьючены до " + time.strftime("%H:%M", time.localtime(user["muted_until"]))}), 403
+        if user.get("spam_blocked"):
+            return jsonify({"error": "У вас спам-блок. Нельзя писать в общий чат."}), 403
         role = user_role(user)
         if role not in ("senior_admin", "owner"):
             now = time.time()
@@ -582,6 +612,12 @@ def post_message():
             return jsonify({"error": "Пользователь не найден"}), 404
         if user["login"].lower() in [b.lower() for b in target.get("blocked", [])]:
             return jsonify({"error": "Пользователь заблокировал вас"}), 403
+        if user.get("spam_blocked"):
+            msgs_list = load_messages()
+            chat_k = chat_key(user["login"], target["login"])
+            has_history = any(m["chat"] == chat_k for m in msgs_list)
+            if not has_history:
+                return jsonify({"error": "У вас спам-блок. Нельзя писать незнакомым людям."}), 403
 
     with lock:
         msgs = load_messages()
@@ -600,7 +636,56 @@ def post_message():
         }
         msgs.append(msg)
         save_messages(msgs)
-        return jsonify(msg)
+
+    if chat == "public" and not user.get("is_bot"):
+        with lock:
+            msgs = load_messages()
+            bots = load_bots()
+            text_lower = text.lower()
+            for bot_info in bots:
+                if bot_info["login"].lower() == user["login"].lower():
+                    continue
+                bot_user = find_user(bot_info["login"])
+                if not bot_user:
+                    continue
+                responded = False
+                for cmd in bot_info.get("commands", []):
+                    trig = cmd.get("trigger", "").lower()
+                    if trig and trig in text_lower:
+                        bot_msg = {
+                            "id": max([m["id"] for m in msgs], default=0) + 1,
+                            "chat": "public",
+                            "login": bot_user["login"],
+                            "name": bot_user["name"],
+                            "admin": False,
+                            "role": "",
+                            "type": "text",
+                            "text": cmd["response"],
+                            "time": int(time.time()),
+                            "read_by": [],
+                        }
+                        msgs.append(bot_msg)
+                        responded = True
+                        break
+                if not responded and ("@" + bot_info["login"].lower()) in text_lower:
+                    welcome = bot_info.get("welcome", "")
+                    if welcome:
+                        bot_msg = {
+                            "id": max([m["id"] for m in msgs], default=0) + 1,
+                            "chat": "public",
+                            "login": bot_user["login"],
+                            "name": bot_user["name"],
+                            "admin": False,
+                            "role": "",
+                            "type": "text",
+                            "text": welcome,
+                            "time": int(time.time()),
+                            "read_by": [],
+                        }
+                        msgs.append(bot_msg)
+            save_messages(msgs)
+
+    return jsonify(msg)
 
 
 def handle_owner_command(user, text):
@@ -678,6 +763,95 @@ def handle_owner_command(user, text):
                     u["role"] = "junior_admin"
             save_users(users)
         return {"ok": True, "mute_result": "@" + target_login + " теперь младший админ"}
+
+    return None
+
+
+def handle_user_command(user, text):
+    if not text.startswith("/"):
+        return None
+    parts = text.split(None, 2)
+    cmd = parts[0].lower()
+
+    if cmd == "/free":
+        today = time.strftime("%Y-%m-%d")
+        key = user["login"].lower()
+        if free_today.get(key) == today:
+            return {"ok": True, "mute_result": "Вы уже получали 10 кока-коликов сегодня! Приходите завтра."}
+        with lock:
+            users = load_users()
+            for u in users:
+                if u["login"].lower() == key:
+                    u["cocacoliki"] = u.get("cocacoliki", 0) + 10
+            save_users(users)
+        free_today[key] = today
+        return {"ok": True, "mute_result": "Вы получили 10 кока-коликов! 🪙"}
+
+    if cmd == "/give":
+        role = user_role(user)
+        if role not in ("senior_admin", "owner"):
+            return {"error": "Команда /give доступна только старшему админу и владельцу"}
+        if len(parts) < 3:
+            return {"error": "Использование: /give <логин> <сумма>"}
+        target_login = parts[1].strip().lower()
+        try:
+            amount = int(parts[2])
+        except (ValueError, TypeError):
+            return {"error": "Укажите числовую сумму"}
+        if amount <= 0 or amount > 10000:
+            return {"error": "Сумма от 1 до 10000"}
+        if not find_user(target_login):
+            return {"error": "Пользователь @" + target_login + " не найден"}
+        with lock:
+            users = load_users()
+            for u in users:
+                if u["login"].lower() == target_login:
+                    u["cocacoliki"] = u.get("cocacoliki", 0) + amount
+            save_users(users)
+        return {"ok": True, "mute_result": "Выдали " + str(amount) + " кока-коликов @" + target_login}
+
+    if cmd == "/pred":
+        role = user_role(user)
+        if role not in ("senior_admin", "owner"):
+            return {"error": "Команда /pred доступна только старшему админу и владельцу"}
+        if len(parts) < 2:
+            return {"error": "Использование: /pred <логин>"}
+        target_login = parts[1].strip().lower()
+        target_user = find_user(target_login)
+        if not target_user:
+            return {"error": "Пользователь @" + target_login + " не найден"}
+        if is_owner_login(target_login) or target_user.get("role") in ("senior_admin",):
+            return {"error": "Нельзя выдать предупреждение этому пользователю"}
+        with lock:
+            users = load_users()
+            for u in users:
+                if u["login"].lower() == target_login:
+                    u["warnings"] = u.get("warnings", 0) + 1
+                    warns = u["warnings"]
+                    if warns >= 15:
+                        save_users(users)
+                        users2 = [x for x in users if x["login"].lower() != target_login]
+                        save_users(users2)
+                        return {"ok": True, "mute_result": "@" + target_login + " удалён за 15 предупреждений! 💀"}
+                    elif warns >= 12:
+                        u["muted_until"] = int(time.time()) + 600 * 60
+                        save_users(users)
+                        return {"ok": True, "mute_result": "@" + target_login + ": " + str(warns) + " предупреждений → мут на 10 часов"}
+                    elif warns >= 9:
+                        u["muted_until"] = int(time.time()) + 240 * 60
+                        save_users(users)
+                        return {"ok": True, "mute_result": "@" + target_login + ": " + str(warns) + " предупреждений → мут на 4 часа"}
+                    elif warns >= 6:
+                        u["muted_until"] = int(time.time()) + 120 * 60
+                        save_users(users)
+                        return {"ok": True, "mute_result": "@" + target_login + ": " + str(warns) + " предупреждений → мут на 2 часа"}
+                    elif warns >= 3:
+                        u["muted_until"] = int(time.time()) + 60 * 60
+                        save_users(users)
+                        return {"ok": True, "mute_result": "@" + target_login + ": " + str(warns) + " предупреждений → мут на 1 час"}
+                    else:
+                        save_users(users)
+                        return {"ok": True, "mute_result": "@" + target_login + ": " + str(warns) + " предупреждение(ий) из 15"}
 
     return None
 
@@ -877,14 +1051,21 @@ def profile_change_login():
         return jsonify({"error": "Юзернейм минимум 3 символа"}), 400
     if not new_login.isalnum():
         return jsonify({"error": "Юзернейм только буквы и цифры"}), 400
+    if new_login != "zamadmin" and "admin" in new_login:
+        return jsonify({"error": "Этот логин запрещён"}), 400
     if find_user(new_login) and new_login != user["login"].lower():
         return jsonify({"error": "Этот юзернейм уже занят"}), 400
+    if new_login != user["login"].lower():
+        if user.get("cocacoliki", 0) < 200:
+            return jsonify({"error": "Нужно 200 кока-коликов (у вас " + str(user.get("cocacoliki", 0)) + ")"}), 400
     old_login = user["login"].lower()
     with lock:
         users = load_users()
         for u in users:
             if u["login"].lower() == old_login:
                 u["login"] = new_login
+                if new_login != old_login:
+                    u["cocacoliki"] = u.get("cocacoliki", 0) - 200
         save_users(users)
     session["login"] = new_login
     return jsonify({"ok": True, "login": new_login})
@@ -1122,6 +1303,169 @@ def earn_tip():
     return jsonify({"ok": True, "message": "Вы отправили " + str(amount) + " кока-коликов @" + login})
 
 
+# ---------- Spam block ----------
+
+@app.route("/api/admin/spam_block", methods=["POST"])
+def admin_spam_block():
+    admin, err = require_admin()
+    if err:
+        return err
+    data = request.get_json(silent=True) or {}
+    login = str(data.get("login", "")).strip().lower()
+    block = bool(data.get("block", True))
+    if not login:
+        return jsonify({"error": "Укажите логин"}), 400
+    target = find_user(login)
+    if not target:
+        return jsonify({"error": "Пользователь не найден"}), 404
+    with lock:
+        users = load_users()
+        for u in users:
+            if u["login"].lower() == login:
+                u["spam_blocked"] = block
+        save_users(users)
+    return jsonify({"ok": True, "spam_blocked": block})
+
+
+# ---------- Delete private chat ----------
+
+@app.route("/api/private/delete", methods=["POST"])
+def delete_private_chat():
+    user = current_user()
+    if not user:
+        return jsonify({"error": "Войдите в аккаунт"}), 401
+    data = request.get_json(silent=True) or {}
+    to = str(data.get("login", "")).strip().lower()
+    if not to:
+        return jsonify({"error": "Укажите логин"}), 400
+    target = find_user(to)
+    if not target:
+        return jsonify({"error": "Пользователь не найден"}), 404
+    key = chat_key(user["login"], to)
+    with lock:
+        msgs = load_messages()
+        removed = 0
+        for m in msgs[:]:
+            if m["chat"] == key:
+                msgs.remove(m)
+                removed += 1
+        save_messages(msgs)
+    return jsonify({"ok": True, "removed": removed})
+
+
+# ---------- Bots ----------
+
+@app.route("/api/admin/bots", methods=["GET"])
+def admin_bots_list():
+    admin, err = require_admin()
+    if err:
+        return err
+    bots = load_bots()
+    return jsonify(bots)
+
+
+@app.route("/api/admin/bots", methods=["POST"])
+def admin_bot_create():
+    admin, err = require_admin()
+    if err:
+        return err
+    data = request.get_json(silent=True) or {}
+    name = str(data.get("name", "")).strip()[:50]
+    bot_login = str(data.get("login", "")).strip()[:30].lower()
+    if not name or not bot_login:
+        return jsonify({"error": "Укажите имя и логин бота"}), 400
+    if find_user(bot_login):
+        return jsonify({"error": "Логин уже занят"}), 400
+    if bot_login != "zamadmin" and "admin" in bot_login:
+        return jsonify({"error": "Этот логин запрещён"}), 400
+    welcome = str(data.get("welcome", "")).strip()[:500]
+    commands = data.get("commands", [])
+    with lock:
+        bots = load_bots()
+        bot_id = max([b["id"] for b in bots], default=0) + 1
+        bot = {
+            "id": bot_id,
+            "name": name,
+            "login": bot_login,
+            "welcome": welcome,
+            "commands": commands,
+            "owner": admin["login"],
+        }
+        bots.append(bot)
+        save_bots(bots)
+        users = load_users()
+        user = {
+            "id": max([u["id"] for u in users], default=0) + 1,
+            "login": bot_login,
+            "name": name,
+            "password": generate_password_hash(str(bot_id)),
+            "is_admin": False,
+            "is_bot": True,
+            "blocked": [],
+            "hidden": [],
+            "avatar": "",
+            "cocacoliki": 0,
+        }
+        users.append(user)
+        save_users(users)
+    return jsonify({"ok": True, "bot": bot})
+
+
+@app.route("/api/admin/bots", methods=["PUT"])
+def admin_bot_update():
+    admin, err = require_admin()
+    if err:
+        return err
+    data = request.get_json(silent=True) or {}
+    bot_id = data.get("id")
+    if not bot_id:
+        return jsonify({"error": "Укажите ID бота"}), 400
+    with lock:
+        bots = load_bots()
+        for b in bots:
+            if b["id"] == bot_id:
+                if "name" in data:
+                    b["name"] = data["name"][:50]
+                    users = load_users()
+                    for u in users:
+                        if u["login"] == b["login"]:
+                            u["name"] = data["name"][:50]
+                    save_users(users)
+                if "welcome" in data:
+                    b["welcome"] = data["welcome"][:500]
+                if "commands" in data:
+                    b["commands"] = data["commands"]
+                save_bots(bots)
+                return jsonify({"ok": True, "bot": b})
+    return jsonify({"error": "Бот не найден"}), 404
+
+
+@app.route("/api/admin/bots/delete", methods=["POST"])
+def admin_bot_delete():
+    admin, err = require_admin()
+    if err:
+        return err
+    data = request.get_json(silent=True) or {}
+    bot_id = data.get("id")
+    if not bot_id:
+        return jsonify({"error": "Укажите ID бота"}), 400
+    with lock:
+        bots = load_bots()
+        bot = None
+        for b in bots:
+            if b["id"] == bot_id:
+                bot = b
+                break
+        if not bot:
+            return jsonify({"error": "Бот не найден"}), 404
+        bots = [b for b in bots if b["id"] != bot_id]
+        save_bots(bots)
+        users = load_users()
+        users = [u for u in users if u["login"].lower() != bot["login"].lower()]
+        save_users(users)
+    return jsonify({"ok": True})
+
+
 # ---------- Groups ----------
 
 GROUPS_FILE = os.path.join(APP_DIR, "groups.json")
@@ -1269,9 +1613,54 @@ def group_message():
                     "time": int(time.time()),
                     "read_by": [],
                 }
-                msgs.append(msg)
-                save_messages(msgs)
-                return jsonify(msg)
+        msgs.append(msg)
+        save_messages(msgs)
+        if chat == "public" and not user.get("is_bot"):
+            bots = load_bots()
+            text_lower = text.lower()
+            for bot_info in bots:
+                if bot_info["login"].lower() == user["login"].lower():
+                    continue
+                bot_user = find_user(bot_info["login"])
+                if not bot_user:
+                    continue
+                responded = False
+                for cmd in bot_info.get("commands", []):
+                    trig = cmd.get("trigger", "").lower()
+                    if trig and trig in text_lower:
+                        bot_msg = {
+                            "id": max([m["id"] for m in msgs], default=0) + 1,
+                            "chat": "public",
+                            "login": bot_user["login"],
+                            "name": bot_user["name"],
+                            "admin": False,
+                            "role": "",
+                            "type": "text",
+                            "text": cmd["response"],
+                            "time": int(time.time()),
+                            "read_by": [],
+                        }
+                        msgs.append(bot_msg)
+                        responded = True
+                        break
+                if not responded and ("@" + bot_info["login"].lower()) in text_lower:
+                    welcome = bot_info.get("welcome", "")
+                    if welcome:
+                        bot_msg = {
+                            "id": max([m["id"] for m in msgs], default=0) + 1,
+                            "chat": "public",
+                            "login": bot_user["login"],
+                            "name": bot_user["name"],
+                            "admin": False,
+                            "role": "",
+                            "type": "text",
+                            "text": welcome,
+                            "time": int(time.time()),
+                            "read_by": [],
+                        }
+                        msgs.append(bot_msg)
+            save_messages(msgs)
+        return jsonify(msg)
     return jsonify({"error": "Группа не найдена"}), 404
 
 

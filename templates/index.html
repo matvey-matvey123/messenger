@@ -387,7 +387,7 @@
       <div class="you">
         <span id="miniAv" class="mini-av" title="Профиль"></span>
         Вы: <span id="yourName">...</span>
-        <button id="coinsBtn" class="hbtn" title="Кока-колики">🪙 <span id="coinsCount">0</span></button>
+        <button id="coinsBtn" class="hbtn" title="Кока-колики"><img src="https://raw.githubusercontent.com/matvey-matvey123/messenger/master/koliki.png" style="height:18px;vertical-align:middle;" alt="🪙"> <span id="coinsCount">0</span></button>
         <button id="rulesBtn" class="hbtn" title="Правила чата">📜 Правила</button>
         <button id="settingsBtn" class="hbtn" title="Настройки">⚙</button>
         <button id="profileBtn" class="hbtn">Профиль</button>
@@ -411,6 +411,7 @@
         </div>
         <div class="side-title">Пользователи</div>
         <input id="search" placeholder="Поиск по логину...">
+        <button id="createGroupBtn" class="btn" style="width:100%;justify-content:center;margin-bottom:8px;" onclick="showGroupsModal()">👥 Создать группу</button>
         <div class="stats">
           <div class="stat online"><div class="num" id="statOnline">0</div><div class="lbl">В сети</div></div>
           <div class="stat offline"><div class="num" id="statOffline">0</div><div class="lbl">Не в сети</div></div>
@@ -424,7 +425,8 @@
           <button id="backBtn" class="back-btn hidden">← Назад</button>
           <div class="ct-title"><span class="dot" id="chatDot"></span><span id="chatTitle">Общий чат</span></div>
           <span id="blockedNotice" class="blocked-notice hidden"></span>
-          <div class="call-btns" id="callBtns"></div>
+          <div class="call-btns hidden" id="callBtns"></div>
+          <button id="deleteChatBtn" class="hbtn hidden" title="Удалить чат" style="color:var(--red);">🗑</button>
         </div>
         <div id="messages">
           <div class="empty">Напишите первым!</div>
@@ -571,15 +573,15 @@
       <header><h2>Кока-колики</h2><button id="coinsClose" class="xbtn">×</button></header>
       <div class="admin-content">
         <div class="prof-row" style="text-align:center;">
-          <div style="font-size:48px;">🪙</div>
+          <div style="text-align:center;"><img src="https://raw.githubusercontent.com/matvey-matvey123/messenger/master/koliki.png" style="height:48px;" alt="колики"></div>
           <div style="font-size:24px;font-weight:700;" id="coinsBalance">0</div>
           <div style="color:var(--muted);font-size:13px;">кока-коликов</div>
         </div>
         <div class="prof-row">
           <label>Магазин</label>
           <div class="prof-actions" style="flex-direction:column;gap:10px;">
-            <button id="shopBuyUnmute" class="btn" style="width:100%;justify-content:center;">🔇 Размут — 30 🪙</button>
-            <button id="shopBuyPrefix" class="btn" style="width:100%;justify-content:center;">🏷 Купить префикс — 60 🪙</button>
+            <button id="shopBuyUnmute" class="btn" style="width:100%;justify-content:center;">🔇 Размут — 30 <img src="https://raw.githubusercontent.com/matvey-matvey123/messenger/master/koliki.png" style="height:14px;vertical-align:middle;"></button>
+            <button id="shopBuyPrefix" class="btn" style="width:100%;justify-content:center;">🏷 Купить префикс — 60 <img src="https://raw.githubusercontent.com/matvey-matvey123/messenger/master/koliki.png" style="height:14px;vertical-align:middle;"></button>
           </div>
         </div>
         <div class="prof-row">
@@ -805,7 +807,7 @@
     try {
       const data = await api('/api/me');
       if (data.authenticated) {
-        me = { login: data.login, name: data.name, is_admin: data.is_admin, is_owner: data.is_owner, role: data.role || '', avatar: data.avatar, role_hidden: data.role_hidden || false, is_bot: data.is_bot || false, cocacoliki: data.cocacoliki || 0, prefix_bought: data.prefix_bought || false };
+        me = { login: data.login, name: data.name, is_admin: data.is_admin, is_owner: data.is_owner, role: data.role || '', avatar: data.avatar, role_hidden: data.role_hidden || false, is_bot: data.is_bot || false, cocacoliki: data.cocacoliki || 0, prefix_bought: data.prefix_bought || false, spam_blocked: data.spam_blocked || false, warnings: data.warnings || 0 };
         showChat();
       } else showAuth();
     } catch (e) { showAuth(); }
@@ -1087,6 +1089,7 @@
       elBlockedNotice.classList.toggle('hidden', !blocked);
       elBlockedNotice.textContent = u.iBlocked ? 'Вы заблокировали этого пользователя.' : 'Этот пользователь заблокировал вас.';
     }
+    $('deleteChatBtn').classList.toggle('hidden', currentChat.type === 'public');
     elSend.disabled = !elInput.value.trim() || elInput.disabled;
     renderCallBtns();
     renderPrivates();
@@ -1131,6 +1134,14 @@
   }
 
   elBackBtn.addEventListener('click', () => { showSidebar(true); });
+  $('deleteChatBtn').addEventListener('click', async () => {
+    if (!currentChat.with || !confirm('Удалить весь чат с @' + currentChat.with.login + '?')) return;
+    try {
+      await api('/api/private/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: currentChat.with.login }) });
+      elMessages.innerHTML = '<div class="empty">Чат удалён</div>';
+      lastIds[chatKey(currentChat)] = 0;
+    } catch (e) { alert(e); }
+  });
 
   function refreshCurrentUserStatus() {
     if (currentChat.type !== 'private') return;
@@ -1582,6 +1593,7 @@
     else if (adminState.view === 'complaints') await renderAdminComplaints();
     else if (adminState.view === 'applications') await renderAdminApplications();
     else if (adminState.view === 'forgot_password') await renderAdminForgotPassword();
+    else if (adminState.view === 'bots') await renderAdminBots();
   }
 
   function adminTabs() {
@@ -1598,6 +1610,7 @@
     if (canComplaints()) mk('Жалобы', 'complaints');
     if (me.is_owner) mk('Заявки', 'applications');
     if (me.is_owner) mk('Забыли пароль', 'forgot_password');
+    if (me.is_owner) mk('Боты', 'bots');
     return bar;
   }
 
@@ -1793,6 +1806,67 @@
         renderAdminForgotPassword();
       });
       actions.appendChild(blockBtn);
+      row.appendChild(info); row.appendChild(actions);
+      elAdminContent.appendChild(row);
+    }
+  }
+
+  async function renderAdminBots() {
+    let bots = [];
+    try { bots = await api('/api/admin/bots'); }
+    catch (e) { elAdminContent.innerHTML = '<div class="admin-empty">' + e + '</div>'; return; }
+    elAdminContent.innerHTML = '';
+    elAdminContent.appendChild(adminTabs());
+    const addBtn = document.createElement('button');
+    addBtn.className = 'btn green'; addBtn.textContent = '+ Создать бота';
+    addBtn.addEventListener('click', () => {
+      const name = prompt('Имя бота:');
+      if (!name) return;
+      const login = prompt('Логин бота:');
+      if (!login) return;
+      const welcome = prompt('Приветственное сообщение (что напишет при старте):') || '';
+      api('/api/admin/bots', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, login, welcome, commands: [] }) }).then(() => renderAdminBots()).catch(err => alert(err));
+    });
+    elAdminContent.appendChild(addBtn);
+    if (!bots.length) {
+      const empty = document.createElement('div');
+      empty.className = 'admin-empty'; empty.textContent = 'Нет ботов';
+      elAdminContent.appendChild(empty);
+      return;
+    }
+    for (const bot of bots) {
+      const row = document.createElement('div');
+      row.className = 'admin-user';
+      const info = document.createElement('div');
+      info.className = 'au-info';
+      const nm = document.createElement('div');
+      nm.className = 'au-name'; nm.textContent = '🤖 ' + bot.name + ' (@' + bot.login + ')';
+      const lg = document.createElement('div');
+      lg.className = 'au-login';
+      lg.textContent = 'Приветствие: ' + (bot.welcome || 'нет') + ' · Команды: ' + (bot.commands ? bot.commands.length : 0);
+      info.appendChild(nm); info.appendChild(lg);
+      const actions = document.createElement('div');
+      actions.className = 'au-actions';
+      const editBtn = document.createElement('button');
+      editBtn.className = 'btn'; editBtn.textContent = '✏ Изменить';
+      editBtn.addEventListener('click', () => {
+        const newName = prompt('Новое имя:', bot.name);
+        if (newName === null) return;
+        const newWelcome = prompt('Новое приветствие:', bot.welcome);
+        if (newWelcome === null) return;
+        const cmdsStr = prompt('Команды (формат: слово1=ответ1, слово2=ответ2):', bot.commands ? bot.commands.map(c => c.trigger + '=' + c.response).join(', ') : '');
+        const commands = cmdsStr ? cmdsStr.split(',').map(s => { const [t, r] = s.trim().split('='); return t && r ? { trigger: t.trim(), response: r.trim() } : null; }).filter(Boolean) : [];
+        api('/api/admin/bots', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: bot.id, name: newName, welcome: newWelcome, commands }) }).then(() => renderAdminBots()).catch(err => alert(err));
+      });
+      actions.appendChild(editBtn);
+      const delBtn = document.createElement('button');
+      delBtn.className = 'btn red'; delBtn.textContent = '🗑 Удалить';
+      delBtn.addEventListener('click', async () => {
+        if (!confirm('Удалить бота @' + bot.login + '?')) return;
+        await api('/api/admin/bots/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: bot.id }) });
+        renderAdminBots();
+      });
+      actions.appendChild(delBtn);
       row.appendChild(info); row.appendChild(actions);
       elAdminContent.appendChild(row);
     }
@@ -2783,7 +2857,7 @@
         if (u.login !== me.login && (me.is_owner || me.role === 'senior_admin')) {
           const giftBtn = document.createElement('button');
           giftBtn.className = 'btn';
-          giftBtn.textContent = '🪙 Дать кока-колики';
+          giftBtn.textContent = 'Дать кока-колики 🪙';
           giftBtn.onclick = async () => {
             const amount = prompt('Сколько кока-коликов дать @' + u.login + '?', '10');
             const a = parseInt(amount, 10);
@@ -2814,6 +2888,24 @@
           };
           actionsEl.appendChild(tipBtn);
         }
+        if (u.login !== me.login && (me.is_owner || me.role === 'senior_admin')) {
+          const spamBtn = document.createElement('button');
+          spamBtn.className = 'btn' + (u.spam_blocked ? ' green' : ' red');
+          spamBtn.textContent = u.spam_blocked ? '🔓 Снять спам-блок' : '🚫 Дать спам-блок';
+          spamBtn.onclick = async () => {
+            await api('/api/admin/spam_block', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: u.login, block: !u.spam_blocked }) });
+            u.spam_blocked = !u.spam_blocked;
+            showUserProfile(u); renderUsers();
+          };
+          actionsEl.appendChild(spamBtn);
+        }
+      }
+
+      if (u.warnings) {
+        const warnEl = document.createElement('div');
+        warnEl.className = 'prof-row';
+        warnEl.innerHTML = '<label>Предупреждения</label><div style="font-size:14px;color:var(--red);font-weight:600;">' + u.warnings + ' / 15</div><div style="font-size:12px;color:var(--muted);">3 → 1ч мут, 6 → 2ч, 9 → 4ч, 12 → 10ч, 15 → удаление</div>';
+        $('upActions').appendChild(warnEl);
       }
     }
 
