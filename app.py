@@ -15,6 +15,7 @@ MESSAGES_FILE = os.path.join(APP_DIR, "messages.json")
 COMPLAINTS_FILE = os.path.join(APP_DIR, "complaints.json")
 SETTINGS_FILE = os.path.join(APP_DIR, "settings.json")
 ANNOUNCEMENTS_FILE = os.path.join(APP_DIR, "announcements.json")
+APPLICATIONS_FILE = os.path.join(APP_DIR, "applications.json")
 UPLOAD_DIR = os.path.join(APP_DIR, "uploads")
 AVATAR_DIR = os.path.join(UPLOAD_DIR, "avatars")
 MEDIA_DIR = os.path.join(UPLOAD_DIR, "media")
@@ -115,6 +116,21 @@ def load_announcements():
 
 def save_announcements(items):
     with open(ANNOUNCEMENTS_FILE, "w", encoding="utf-8") as f:
+        json.dump(items, f, ensure_ascii=False, indent=2)
+
+
+def load_applications():
+    if not os.path.exists(APPLICATIONS_FILE):
+        return []
+    try:
+        with open(APPLICATIONS_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return []
+
+
+def save_applications(items):
+    with open(APPLICATIONS_FILE, "w", encoding="utf-8") as f:
         json.dump(items, f, ensure_ascii=False, indent=2)
 
 
@@ -831,6 +847,30 @@ def profile_password():
     return jsonify({"ok": True})
 
 
+@app.route("/api/profile/login", methods=["POST"])
+def profile_change_login():
+    user = current_user()
+    if not user:
+        return jsonify({"error": "Войдите в аккаунт"}), 401
+    data = request.get_json(silent=True) or {}
+    new_login = str(data.get("login", "")).strip()[:30].lower()
+    if not new_login or len(new_login) < 3:
+        return jsonify({"error": "Юзернейм минимум 3 символа"}), 400
+    if not new_login.isalnum():
+        return jsonify({"error": "Юзернейм только буквы и цифры"}), 400
+    if find_user(new_login) and new_login != user["login"].lower():
+        return jsonify({"error": "Этот юзернейм уже занят"}), 400
+    old_login = user["login"].lower()
+    with lock:
+        users = load_users()
+        for u in users:
+            if u["login"].lower() == old_login:
+                u["login"] = new_login
+        save_users(users)
+    session["login"] = new_login
+    return jsonify({"ok": True, "login": new_login})
+
+
 @app.route("/api/profile/role_hidden", methods=["POST"])
 def profile_role_hidden():
     user = current_user()
@@ -887,6 +927,77 @@ def profile_bot_mode():
                 u["is_bot"] = bot_on
         save_users(users)
     return jsonify({"ok": True, "is_bot": bot_on})
+
+
+@app.route("/api/applications", methods=["POST"])
+def submit_application():
+    user = current_user()
+    if not user:
+        return jsonify({"error": "Войдите в аккаунт"}), 401
+    if user.get("is_admin") or is_owner_login(user["login"]):
+        return jsonify({"error": "Вы уже администратор"}), 400
+    data = request.get_json(silent=True) or {}
+    reason = str(data.get("reason", "")).strip()[:500]
+    commitment = str(data.get("commitment", "")).strip()[:200]
+    if not reason:
+        return jsonify({"error": "Напишите причину"}), 400
+    with lock:
+        apps = load_applications()
+        for a in apps:
+            if a["login"] == user["login"] and a["status"] == "pending":
+                return jsonify({"error": "У вас уже есть заявка на рассмотрении"}), 400
+        app_item = {
+            "id": max([a["id"] for a in apps], default=0) + 1,
+            "login": user["login"],
+            "name": user["name"],
+            "reason": reason,
+            "commitment": commitment,
+            "status": "pending",
+            "time": int(time.time()),
+        }
+        apps.append(app_item)
+        save_applications(apps)
+    return jsonify({"ok": True, "message": "Заявка отправлена! Если хотите чтобы вас одобрили быстрее, напишите в мессенджере @admin"})
+
+
+@app.route("/api/applications", methods=["GET"])
+def get_applications():
+    user = current_user()
+    if not user:
+        return jsonify({"error": "Войдите в аккаунт"}), 401
+    if not is_owner_login(user["login"]):
+        return jsonify({"error": "Только владелец"}), 403
+    apps = load_applications()
+    return jsonify(apps)
+
+
+@app.route("/api/applications/process", methods=["POST"])
+def process_application():
+    user = current_user()
+    if not user:
+        return jsonify({"error": "Войдите в аккаунт"}), 401
+    if not is_owner_login(user["login"]):
+        return jsonify({"error": "Только владелец"}), 403
+    data = request.get_json(silent=True) or {}
+    app_id = int(data.get("id", 0))
+    action = str(data.get("action", ""))  # approve / reject
+    if not app_id or action not in ("approve", "reject"):
+        return jsonify({"error": "Неверные данные"}), 400
+    with lock:
+        apps = load_applications()
+        for a in apps:
+            if a["id"] == app_id:
+                a["status"] = "approved" if action == "approve" else "rejected"
+                if action == "approve":
+                    users = load_users()
+                    for u in users:
+                        if u["login"].lower() == a["login"]:
+                            u["is_admin"] = True
+                            u["role"] = "junior_admin"
+                    save_users(users)
+                save_applications(apps)
+                return jsonify({"ok": True})
+    return jsonify({"error": "Заявка не найдена"}), 404
 
 
 @app.route("/api/admin/prefix", methods=["POST"])

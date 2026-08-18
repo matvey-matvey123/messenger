@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Мессенджер</title>
+<link rel="icon" type="image/png" href="https://raw.githubusercontent.com/matvey-matvey123/messenger/master/ikon.png">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
@@ -46,7 +47,8 @@
   /* Chat screen */
   .chat-screen { flex: 1; display: flex; flex-direction: column; min-height: 0; }
   header { display: flex; align-items: center; gap: 12px; padding: 12px 20px; background: var(--panel); border-bottom: 1px solid var(--border); flex: 0 0 auto; }
-  header .logo { width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(135deg, var(--accent), #7a5bff); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 18px; color: #fff; flex: 0 0 auto; }
+  header .logo { width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(135deg, var(--accent), #7a5bff); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 18px; color: #fff; flex: 0 0 auto; overflow: hidden; }
+  header .logo img { width: 100%; height: 100%; object-fit: cover; }
   header h1 { font-size: 18px; font-weight: 600; display: flex; align-items: center; gap: 8px; min-width: 0; }
   #titleText { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #titleEdit { background: none; border: none; color: var(--muted); font-size: 14px; cursor: pointer; padding: 2px 6px; }
@@ -377,8 +379,9 @@
   <!-- Chat -->
   <div id="chatScreen" class="chat-screen hidden">
     <header>
-      <div class="logo">М</div>
+      <div class="logo"><img src="https://raw.githubusercontent.com/matvey-matvey123/messenger/master/ikon.png" alt="М"></div>
         <button id="adminBtn" class="hbtn hidden">Админ-панель</button>
+        <button id="applyAdminBtn" class="hbtn hidden" style="background:var(--accent);color:#fff;border:none;">Податься в администраторы</button>
         <button id="annBtn" class="hbtn" title="Объявления">📢</button>
         <h1><span id="titleText">Мессенджер</span><button id="titleEdit" class="hidden" title="Изменить название">✎</button></h1>
       <div class="you">
@@ -465,6 +468,14 @@
           </div>
         </div>
         <div class="prof-row">
+          <label>Юзернейм</label>
+          <div class="prof-actions" style="gap:8px;">
+            <input id="setLogin" placeholder="Новый юзернейм" style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);padding:10px 12px;font-size:14px;outline:none;">
+            <button id="setLoginSave" class="btn">Сменить</button>
+          </div>
+          <div id="setLoginMsg" class="prof-msg" style="font-size:12px;"></div>
+        </div>
+        <div class="prof-row">
           <label>Смена пароля</label>
           <input id="setCurPass" type="password" placeholder="Текущий пароль" autocomplete="current-password">
           <input id="setNewPass" type="password" placeholder="Новый пароль (минимум 4 символа)" autocomplete="new-password">
@@ -545,6 +556,27 @@
           </div>
         </div>
         <div id="annList"><div class="empty">Пока нет объявлений</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Application Form -->
+  <div id="applyOverlay" class="overlay hidden">
+    <div class="admin-box prof-box">
+      <header><h2>Заявка в администраторы</h2><button id="applyClose" class="xbtn">×</button></header>
+      <div class="admin-content">
+        <div class="prof-row">
+          <label>Почему мы должны принять вас в админы?</label>
+          <textarea id="applyReason" rows="4" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);padding:10px 12px;font-size:14px;outline:none;resize:vertical;font-family:inherit;"></textarea>
+        </div>
+        <div class="prof-row">
+          <label>На сколько готовы идти ради мессенджера?</label>
+          <input id="applyCommit" placeholder="Напр. готов модерировать каждый день" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);padding:10px 12px;font-size:14px;outline:none;">
+        </div>
+        <div class="prof-actions">
+          <button id="applySubmit" class="btn green">Отправить заявку</button>
+        </div>
+        <div id="applyMsg" class="prof-msg" style="margin-top:8px;"></div>
       </div>
     </div>
   </div>
@@ -678,6 +710,7 @@
     elYourName.textContent = me.name + ' (' + me.login + ')';
     fillAvatar(elMiniAv, me);
     $('adminBtn').classList.toggle('hidden', !me.is_admin);
+    $('applyAdminBtn').classList.toggle('hidden', me.is_admin || me.is_owner);
     $('titleEdit').classList.toggle('hidden', !me.is_owner);
     $('titleText').textContent = title;
     document.title = title;
@@ -943,7 +976,7 @@
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
       elCtxMenu.classList.add('hidden');
-      hideProfile(); hideSettings(); closeAdmin(); hideUserProfile();
+      hideProfile(); hideSettings(); closeAdmin(); hideUserProfile(); $('applyOverlay').classList.add('hidden');
     }
   });
 
@@ -1359,6 +1392,8 @@
   }
   function showSettings() {
     $('setCurPass').value = ''; $('setNewPass').value = '';
+    $('setLogin').value = '';
+    $('setLoginMsg').textContent = '';
     $('settingsMsg').textContent = '';
     setTheme(localStorage.getItem('theme') || 'dark');
     $('roleHiddenBox').classList.toggle('hidden', !(me.is_owner || me.role === 'senior_admin'));
@@ -1410,6 +1445,20 @@
       msg.textContent = 'Пароль изменён';
     } catch (err) { msg.classList.add('err'); msg.textContent = err; }
   });
+  $('setLoginSave').addEventListener('click', async () => {
+    const msg = $('setLoginMsg');
+    msg.textContent = '';
+    msg.style.color = 'var(--green)';
+    const newLogin = $('setLogin').value.trim();
+    if (!newLogin || newLogin.length < 3) { msg.style.color = 'var(--red)'; msg.textContent = 'Минимум 3 символа'; return; }
+    try {
+      const r = await api('/api/profile/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: newLogin }) });
+      me.login = r.login;
+      $('setLogin').value = '';
+      msg.textContent = 'Юзернейм изменён на @' + r.login;
+      $('yourName').textContent = me.name + ' (' + me.login + ')';
+    } catch (err) { msg.style.color = 'var(--red)'; msg.textContent = err; }
+  });
   $('roleHiddenBtn').addEventListener('click', async () => {
     const msg = $('roleHiddenMsg');
     msg.textContent = '';
@@ -1456,6 +1505,7 @@
     else if (adminState.view === 'chats') await renderAdminUserChats(adminState.user);
     else if (adminState.view === 'conv') await renderAdminConversation(adminState.user, adminState.partner);
     else if (adminState.view === 'complaints') await renderAdminComplaints();
+    else if (adminState.view === 'applications') await renderAdminApplications();
   }
 
   function adminTabs() {
@@ -1470,6 +1520,7 @@
     };
     mk('Пользователи', 'users');
     if (canComplaints()) mk('Жалобы', 'complaints');
+    if (me.is_owner) mk('Заявки', 'applications');
     return bar;
   }
 
@@ -1542,6 +1593,67 @@
       });
       actions.appendChild(drop);
 
+      row.appendChild(info); row.appendChild(actions);
+      elAdminContent.appendChild(row);
+    }
+  }
+
+  async function renderAdminApplications() {
+    let list = [];
+    try { list = await api('/api/applications'); }
+    catch (e) { elAdminContent.innerHTML = '<div class="admin-empty">' + e + '</div>'; return; }
+    elAdminContent.innerHTML = '';
+    elAdminContent.appendChild(adminTabs());
+    if (!list.length) {
+      const empty = document.createElement('div');
+      empty.className = 'admin-empty'; empty.textContent = 'Заявок пока нет';
+      elAdminContent.appendChild(empty);
+      return;
+    }
+    list.sort((a, b) => b.time - a.time);
+    for (const a of list) {
+      const row = document.createElement('div');
+      row.className = 'admin-user';
+      const info = document.createElement('div');
+      info.className = 'au-info';
+      const nm = document.createElement('div');
+      nm.className = 'au-name'; nm.textContent = a.name + ' (@' + a.login + ')';
+      const lg = document.createElement('div');
+      lg.className = 'au-login';
+      const statusColors = { pending: 'var(--gold)', approved: 'var(--green)', rejected: 'var(--red)' };
+      const statusLabels = { pending: 'На рассмотрении', approved: 'Одобрено', rejected: 'Отклонено' };
+      lg.innerHTML = fmtTime(a.time) + ' · <span style="color:' + (statusColors[a.status] || 'var(--muted)') + '">' + (statusLabels[a.status] || a.status) + '</span>';
+      info.appendChild(nm); info.appendChild(lg);
+      if (a.status === 'pending') {
+        const reasonDiv = document.createElement('div');
+        reasonDiv.className = 'cr-last';
+        reasonDiv.innerHTML = '<strong>Причина:</strong> ' + a.reason;
+        info.appendChild(reasonDiv);
+        if (a.commitment) {
+          const commitDiv = document.createElement('div');
+          commitDiv.className = 'cr-last';
+          commitDiv.innerHTML = '<strong>Готовность:</strong> ' + a.commitment;
+          info.appendChild(commitDiv);
+        }
+      }
+      const actions = document.createElement('div');
+      actions.className = 'au-actions';
+      if (a.status === 'pending') {
+        const approve = document.createElement('button');
+        approve.className = 'btn green'; approve.textContent = '✓ Одобрить';
+        approve.addEventListener('click', async () => {
+          await api('/api/applications/process', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: a.id, action: 'approve' }) });
+          renderAdminApplications();
+        });
+        actions.appendChild(approve);
+        const reject = document.createElement('button');
+        reject.className = 'btn red'; reject.textContent = '✗ Отклонить';
+        reject.addEventListener('click', async () => {
+          await api('/api/applications/process', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: a.id, action: 'reject' }) });
+          renderAdminApplications();
+        });
+        actions.appendChild(reject);
+      }
       row.appendChild(info); row.appendChild(actions);
       elAdminContent.appendChild(row);
     }
@@ -1770,6 +1882,21 @@
 
   $('adminBtn').addEventListener('click', () => openAdmin());
   $('adminClose').addEventListener('click', closeAdmin);
+  $('applyAdminBtn').addEventListener('click', () => { $('applyOverlay').classList.remove('hidden'); $('applyMsg').textContent = ''; $('applyReason').value = ''; $('applyCommit').value = ''; });
+  $('applyClose').addEventListener('click', () => $('applyOverlay').classList.add('hidden'));
+  $('applySubmit').addEventListener('click', async () => {
+    const msg = $('applyMsg');
+    const reason = $('applyReason').value.trim();
+    const commitment = $('applyCommit').value.trim();
+    if (!reason) { msg.style.color = 'var(--red)'; msg.textContent = 'Напишите причину'; return; }
+    try {
+      const r = await api('/api/applications', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason, commitment }) });
+      msg.style.color = 'var(--green)';
+      msg.textContent = r.message || 'Заявка отправлена!';
+      $('applyAdminBtn').classList.add('hidden');
+      setTimeout(() => $('applyOverlay').classList.add('hidden'), 3000);
+    } catch (err) { msg.style.color = 'var(--red)'; msg.textContent = err; }
+  });
 
   // ---------- Calls ----------
   let call = null;
