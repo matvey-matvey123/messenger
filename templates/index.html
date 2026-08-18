@@ -416,7 +416,7 @@
 
       <div class="chat-col">
         <div class="chat-header">
-          <button id="backBtn" class="back-btn hidden" style="display:none">← Общий чат</button>
+          <button id="backBtn" class="back-btn hidden">← Назад</button>
           <div class="ct-title"><span class="dot" id="chatDot"></span><span id="chatTitle">Общий чат</span></div>
           <span id="blockedNotice" class="blocked-notice hidden"></span>
           <div class="call-btns" id="callBtns"></div>
@@ -653,8 +653,6 @@
   let currentChat = { type: 'public' };
   let lastIds = { public: 0 };
   let pending = false;
-  let pendingFile = null;
-  let lastMsgId = 0;
   let selectedMsg = null;
   const msgById = {};
 
@@ -1049,13 +1047,17 @@
     if (window.innerWidth <= 768) {
       sb.style.display = show ? 'flex' : 'none';
       cc.style.display = show ? 'none' : 'flex';
+      elBackBtn.classList.toggle('hidden', show);
+      if (!show) elBackBtn.style.display = '';
     } else {
       sb.style.display = '';
       cc.style.display = '';
+      elBackBtn.classList.add('hidden');
+      elBackBtn.style.display = '';
     }
   }
 
-  elBackBtn.addEventListener('click', () => { openPublicChat(); showSidebar(true); });
+  elBackBtn.addEventListener('click', () => { showSidebar(true); });
 
   function refreshCurrentUserStatus() {
     if (currentChat.type !== 'private') return;
@@ -1627,12 +1629,18 @@
       if (a.status === 'pending') {
         const reasonDiv = document.createElement('div');
         reasonDiv.className = 'cr-last';
-        reasonDiv.innerHTML = '<strong>Причина:</strong> ' + a.reason;
+        const reasonStrong = document.createElement('strong');
+        reasonStrong.textContent = 'Причина: ';
+        reasonDiv.appendChild(reasonStrong);
+        reasonDiv.appendChild(document.createTextNode(a.reason));
         info.appendChild(reasonDiv);
         if (a.commitment) {
           const commitDiv = document.createElement('div');
           commitDiv.className = 'cr-last';
-          commitDiv.innerHTML = '<strong>Готовность:</strong> ' + a.commitment;
+          const commitStrong = document.createElement('strong');
+          commitStrong.textContent = 'Готовность: ';
+          commitDiv.appendChild(commitStrong);
+          commitDiv.appendChild(document.createTextNode(a.commitment));
           info.appendChild(commitDiv);
         }
       }
@@ -2377,16 +2385,6 @@
     return 'Замучен на ' + Math.floor(diff/1440) + ' дн.';
   }
 
-  function roleLabel(u) {
-    if (u.is_owner) return 'Владелец';
-    if (u.is_admin) {
-      if (u.role === 'senior_admin') return 'Старший админ';
-      if (u.role === 'junior_admin') return 'Младший админ';
-      return 'Админ';
-    }
-    return 'Пользователь';
-  }
-
   window.showUserProfile = function(u) {
     upUser = u;
     elCtxMenu.classList.add('hidden');
@@ -2394,8 +2392,7 @@
     $('upName').textContent = u.name;
     $('upLogin').textContent = '@' + u.login;
     const avEl = $('upAvatar');
-    if (u.avatar) { avEl.innerHTML = '<img src="' + u.avatar + '" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">'; }
-    else { avEl.innerHTML = '<span>' + u.name[0].toUpperCase() + '</span>'; }
+    fillAvatar(avEl, u);
 
     const prefixEl = $('upPrefix');
     if (u.prefix) {
@@ -2408,7 +2405,7 @@
     $('upBusiness').textContent = u.prefix || '—';
     $('upExtension').textContent = u.extension || '—';
     $('upMuteStatus').innerHTML = u.muted
-      ? '<span style="color:var(--danger);">🔇 ' + formatMutedTime(u.muted_until) + '</span>'
+      ? '<span style="color:var(--red);">🔇 ' + formatMutedTime(u.muted_until) + '</span>'
       : '<span style="color:var(--muted);">Активен</span>';
 
     const isSenior = me.role === 'senior_admin' || me.is_owner;

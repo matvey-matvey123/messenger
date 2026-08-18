@@ -667,15 +667,15 @@ def parse_duration(s):
     s = s.strip().lower()
     if s.endswith("m"):
         try: return int(s[:-1])
-        except: return 0
+        except (ValueError, TypeError): return 0
     if s.endswith("h"):
         try: return int(s[:-1]) * 60
-        except: return 0
+        except (ValueError, TypeError): return 0
     if s.endswith("d"):
         try: return int(s[:-1]) * 1440
-        except: return 0
+        except (ValueError, TypeError): return 0
     try: return int(s)
-    except: return 0
+    except (ValueError, TypeError): return 0
 
 
 def format_duration(minutes):
@@ -979,7 +979,10 @@ def process_application():
     if not is_owner_login(user["login"]):
         return jsonify({"error": "Только владелец"}), 403
     data = request.get_json(silent=True) or {}
-    app_id = int(data.get("id", 0))
+    try:
+        app_id = int(data.get("id", 0))
+    except (TypeError, ValueError):
+        return jsonify({"error": "Неверный ID"}), 400
     action = str(data.get("action", ""))  # approve / reject
     if not app_id or action not in ("approve", "reject"):
         return jsonify({"error": "Неверные данные"}), 400
@@ -989,6 +992,9 @@ def process_application():
             if a["id"] == app_id:
                 a["status"] = "approved" if action == "approve" else "rejected"
                 if action == "approve":
+                    if not find_user(a["login"]):
+                        save_applications(apps)
+                        return jsonify({"error": "Пользователь @" + a["login"] + " был удалён"}), 404
                     users = load_users()
                     for u in users:
                         if u["login"].lower() == a["login"]:
