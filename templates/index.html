@@ -452,6 +452,11 @@
           <div class="prof-actions"><button id="roleHiddenBtn" class="btn">Войти как обычный гражданин</button></div>
           <div id="roleHiddenMsg" class="prof-msg" style="font-size:12px;margin-top:4px;"></div>
         </div>
+        <div id="botModeBox" class="prof-row hidden">
+          <label>Режим бота</label>
+          <div class="prof-actions"><button id="botModeBtn" class="btn">Войти как бот</button></div>
+          <div id="botModeMsg" class="prof-msg" style="font-size:12px;margin-top:4px;"></div>
+        </div>
         <div class="prof-row">
           <label>Тема</label>
           <div class="theme-row">
@@ -695,7 +700,7 @@
     try {
       const data = await api('/api/me');
       if (data.authenticated) {
-        me = { login: data.login, name: data.name, is_admin: data.is_admin, is_owner: data.is_owner, role: data.role || '', avatar: data.avatar, role_hidden: data.role_hidden || false };
+        me = { login: data.login, name: data.name, is_admin: data.is_admin, is_owner: data.is_owner, role: data.role || '', avatar: data.avatar, role_hidden: data.role_hidden || false, is_bot: data.is_bot || false };
         showChat();
       } else showAuth();
     } catch (e) { showAuth(); }
@@ -1371,6 +1376,21 @@
         msg.style.color = 'var(--muted)';
       }
     }
+    $('botModeBox').classList.toggle('hidden', !me.is_owner);
+    if (me.is_owner) {
+      const bbtn = $('botModeBtn');
+      const bmsg = $('botModeMsg');
+      bmsg.textContent = '';
+      if (me.is_bot) {
+        bbtn.textContent = 'Выйти из режима бота';
+        bmsg.textContent = 'Вы сейчас как бот. Скрыты из списка, в чате — Аноним.';
+        bmsg.style.color = 'var(--gold)';
+      } else {
+        bbtn.textContent = 'Войти как бот';
+        bmsg.textContent = 'Будете скрыты из списка пользователей. В чате отображаетесь как "Аноним". Привилегии сохраняются.';
+        bmsg.style.color = 'var(--muted)';
+      }
+    }
     elSettingsModal.classList.remove('hidden');
   }
   function hideSettings() { elSettingsModal.classList.add('hidden'); }
@@ -1396,6 +1416,16 @@
       const newHide = !me.role_hidden;
       await api('/api/profile/role_hidden', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ hide: newHide }) });
       me.role_hidden = newHide;
+      showSettings();
+    } catch (err) { msg.classList.add('err'); msg.textContent = err; }
+  });
+  $('botModeBtn').addEventListener('click', async () => {
+    const msg = $('botModeMsg');
+    msg.textContent = '';
+    try {
+      const newBot = !me.is_bot;
+      await api('/api/profile/bot_mode', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bot: newBot }) });
+      me.is_bot = newBot;
       showSettings();
     } catch (err) { msg.classList.add('err'); msg.textContent = err; }
   });
@@ -2330,6 +2360,18 @@
             showUserProfile(u); renderUsers();
           };
           actionsEl.appendChild(blockBtn);
+        }
+        if ((me.is_admin || me.is_owner) && u.login !== me.login && (u.is_admin || u.is_owner)) {
+          const hideRoleBtn = document.createElement('button');
+          hideRoleBtn.className = 'btn';
+          hideRoleBtn.textContent = u.role_hidden ? '👁 Показать статус' : '🙈 Скрыть статус';
+          hideRoleBtn.onclick = async () => {
+            const newHide = !u.role_hidden;
+            await api('/api/admin/set_role_hidden', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: u.login, hide: newHide }) });
+            u.role_hidden = newHide;
+            showUserProfile(u); renderUsers();
+          };
+          actionsEl.appendChild(hideRoleBtn);
         }
       }
     }

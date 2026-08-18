@@ -27,6 +27,10 @@ app.config["MAX_CONTENT_LENGTH"] = 15 * 1024 * 1024
 
 lock = threading.Lock()
 last_seen = {}
+msg_timestamps = {}
+SPAM_LIMIT = 4
+SPAM_WINDOW = 120
+SPAM_MUTE_MINUTES = 60
 ONLINE_TIMEOUT = 20
 OWNER_LOGIN = "admin"
 OWNER_NAME = "Матвей"
@@ -216,9 +220,11 @@ def can_delete_account(requester):
 
 def public_info(u):
     hidden = u.get("role_hidden", False)
+    is_bot = u.get("is_bot", False)
+    display_name = "Аноним" if is_bot else u["name"]
     return {
         "login": u["login"],
-        "name": u["name"],
+        "name": display_name,
         "avatar": u.get("avatar", ""),
         "online": is_online(u["login"]),
         "is_admin": False if hidden else u.get("is_admin", False),
@@ -228,6 +234,8 @@ def public_info(u):
         "muted_until": u.get("muted_until"),
         "prefix": u.get("prefix", ""),
         "extension": u.get("extension", ""),
+        "is_bot": is_bot,
+        "role_hidden": hidden,
     }
 
 
@@ -340,6 +348,7 @@ def me():
         "role_hidden": user.get("role_hidden", False),
         "prefix": user.get("prefix", ""),
         "extension": user.get("extension", ""),
+        "is_bot": user.get("is_bot", False),
     })
 
 
@@ -351,10 +360,13 @@ def users():
     if not me_user:
         return jsonify({"error": "Войдите в аккаунт"}), 401
     touch(me_user)
+    me_is_admin = me_user.get("is_admin") or is_owner_login(me_user["login"])
     blocked_me = [b.lower() for b in me_user.get("blocked", [])]
     hidden_me = [h.lower() for h in me_user.get("hidden", [])]
     result = []
     for u in load_users():
+        if u.get("is_bot") and u["login"].lower() != me_user["login"].lower() and not me_is_admin:
+            continue
         info = public_info(u)
         info["iBlocked"] = u["login"].lower() in blocked_me
         info["blockedBy"] = False
@@ -510,6 +522,23 @@ def post_message():
     if chat == "public":
         if user.get("muted_until") and user["muted_until"] > time.time():
             return jsonify({"error": "Вы замьючены до " + time.strftime("%H:%M", time.localtime(user["muted_until"]))}), 403
+        role = user_role(user)
+        if role not in ("senior_admin", "owner"):
+            now = time.time()
+            login = user["login"].lower()
+            if login not in msg_timestamps:
+                msg_timestamps[login] = []
+            msg_timestamps[login] = [t for t in msg_timestamps[login] if now - t < SPAM_WINDOW]
+            msg_timestamps[login].append(now)
+            if len(msg_timestamps[login]) >= SPAM_LIMIT:
+                msg_timestamps[login] = []
+                with lock:
+                    users = load_users()
+                    for u in users:
+                        if u["login"].lower() == login:
+                            u["muted_until"] = int(now) + SPAM_MUTE_MINUTES * 60
+                    save_users(users)
+                return jsonify({"error": "🤖 Антиспам: слишком много сообщений. Вы замьючены на 1 час."}), 429
     else:
         to = str(data.get("to", "")).strip()
         target = find_user(to)
@@ -520,11 +549,12 @@ def post_message():
 
     with lock:
         msgs = load_messages()
+        display_name = "Аноним" if user.get("is_bot") else user["name"]
         msg = {
             "id": max([m["id"] for m in msgs], default=0) + 1,
             "chat": "public" if chat == "public" else chat_key(user["login"], target["login"]),
             "login": user["login"],
-            "name": user["name"],
+            "name": display_name,
             "admin": user.get("is_admin", False),
             "role": user_role(user),
             "type": "text",
@@ -676,11 +706,12 @@ def upload_message():
 
     with lock:
         msgs = load_messages()
+        display_name = "Аноним" if user.get("is_bot") else user["name"]
         msg = {
             "id": max([m["id"] for m in msgs], default=0) + 1,
             "chat": msg_chat,
             "login": user["login"],
-            "name": user["name"],
+            "name": display_name,
             "admin": user.get("is_admin", False),
             "role": user_role(user),
             "type": kind,
@@ -813,6 +844,48 @@ def profile_role_hidden():
                 u["role_hidden"] = hide
         save_users(users)
     return jsonify({"ok": True, "role_hidden": hide})
+
+
+@app.route("/api/admin/set_role_hidden", methods=["POST"])
+def admin_set_role_hidden():
+    admin, err = require_admin()
+    if err:
+        return err
+    if not can_manage_roles(admin):
+        return jsonify({"error": "Недостаточно прав"}), 403
+    data = request.get_json(silent=True) or {}
+    login = str(data.get("login", "")).strip().lower()
+    hide = bool(data.get("hide"))
+    if not login:
+        return jsonify({"error": "Укажите логин"}), 400
+    target = find_user(login)
+    if not target:
+        return jsonify({"error": "Пользователь не найден"}), 404
+    with lock:
+        users = load_users()
+        for u in users:
+            if u["login"].lower() == login:
+                u["role_hidden"] = hide
+        save_users(users)
+    return jsonify({"ok": True, "role_hidden": hide})
+
+
+@app.route("/api/profile/bot_mode", methods=["POST"])
+def profile_bot_mode():
+    user = current_user()
+    if not user:
+        return jsonify({"error": "Войдите в аккаунт"}), 401
+    if not is_owner_login(user["login"]):
+        return jsonify({"error": "Только владелец может включить режим бота"}), 403
+    data = request.get_json(silent=True) or {}
+    bot_on = bool(data.get("bot"))
+    with lock:
+        users = load_users()
+        for u in users:
+            if u["login"].lower() == user["login"].lower():
+                u["is_bot"] = bot_on
+        save_users(users)
+    return jsonify({"ok": True, "is_bot": bot_on})
 
 
 @app.route("/api/admin/prefix", methods=["POST"])
