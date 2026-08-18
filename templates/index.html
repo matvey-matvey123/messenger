@@ -411,7 +411,7 @@
         </div>
         <div class="side-title">Пользователи</div>
         <input id="search" placeholder="Поиск по логину...">
-        <button id="createGroupBtn" class="btn" style="width:100%;justify-content:center;margin-bottom:8px;" onclick="showGroupsModal()">👥 Создать группу</button>
+        <button id="createGroupBtn" class="btn hidden" style="width:100%;justify-content:center;margin-bottom:8px;" onclick="showGroupsModal()">👥 Создать группу</button>
         <div class="stats">
           <div class="stat online"><div class="num" id="statOnline">0</div><div class="lbl">В сети</div></div>
           <div class="stat offline"><div class="num" id="statOffline">0</div><div class="lbl">Не в сети</div></div>
@@ -1650,7 +1650,6 @@
     else if (adminState.view === 'applications') await renderAdminApplications();
     else if (adminState.view === 'forgot_password') await renderAdminForgotPassword();
     else if (adminState.view === 'bots') await renderAdminBots();
-    else if (adminState.view === 'settings') await renderAdminSettings();
     else if (adminState.view === 'banned_words') await renderAdminBannedWords();
   }
 
@@ -1669,8 +1668,7 @@
     if (me.is_owner) mk('Заявки', 'applications');
     if (me.is_owner || me.role === 'deputy_owner') mk('Забыли пароль', 'forgot_password');
     if (me.is_owner || me.role === 'deputy_owner') mk('Боты', 'bots');
-    if (me.is_owner) mk('Запрещённое', 'banned_words');
-    if (me.is_owner) mk('Настройки', 'settings');
+    if (me.is_owner || me.role === 'deputy_owner') mk('Запрещённое', 'banned_words');
     return bar;
   }
 
@@ -2314,7 +2312,6 @@
     $('groupsOverlay').classList.remove('hidden');
     $('groupsManageSection').classList.remove('hidden');
     $('groupChatSection').classList.add('hidden');
-    $('newGroupSection').classList.remove('hidden');
     loadMyGroups();
   }
   

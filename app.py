@@ -271,7 +271,7 @@ def can_manage_roles(requester):
 
 
 def can_handle_complaints(requester):
-    return user_role(requester) in ("owner", "senior_admin")
+    return user_role(requester) in ("owner", "deputy_owner", "senior_admin")
 
 
 def can_mute(requester):
@@ -1302,7 +1302,7 @@ def give_cocacoliki():
     admin, err = require_admin()
     if err:
         return err
-    if not (is_owner_login(admin["login"]) or user_role(admin) == "senior_admin"):
+    if not (is_deputy_or_owner(admin) or user_role(admin) == "senior_admin"):
         return jsonify({"error": "Недостаточно прав"}), 403
     data = request.get_json(silent=True) or {}
     login = str(data.get("login", "")).strip().lower()
@@ -1564,8 +1564,8 @@ def banned_words_list():
     admin, err = require_admin()
     if err:
         return err
-    if not is_full_owner(admin):
-        return jsonify({"error": "Только владелец"}), 403
+    if not is_deputy_or_owner(admin):
+        return jsonify({"error": "Недостаточно прав"}), 403
     return jsonify(load_banned_words())
 
 
@@ -1574,8 +1574,8 @@ def banned_words_add():
     admin, err = require_admin()
     if err:
         return err
-    if not is_full_owner(admin):
-        return jsonify({"error": "Только владелец"}), 403
+    if not is_deputy_or_owner(admin):
+        return jsonify({"error": "Недостаточно прав"}), 403
     data = request.get_json(silent=True) or {}
     word = str(data.get("word", "")).strip().lower()
     if not word:
@@ -1593,8 +1593,8 @@ def banned_words_delete():
     admin, err = require_admin()
     if err:
         return err
-    if not is_full_owner(admin):
-        return jsonify({"error": "Только владелец"}), 403
+    if not is_deputy_or_owner(admin):
+        return jsonify({"error": "Недостаточно прав"}), 403
     data = request.get_json(silent=True) or {}
     word = str(data.get("word", "")).strip().lower()
     with lock:
@@ -1808,8 +1808,8 @@ FAILED_LOGINS = {}
 @app.route("/api/admin/forgot_password", methods=["GET"])
 def admin_forgot_password():
     user = current_user()
-    if not user or not is_owner_login(user["login"]):
-        return jsonify({"error": "Только владелец"}), 403
+    if not user or not is_deputy_or_owner(user):
+        return jsonify({"error": "Недостаточно прав"}), 403
     with lock:
         users = load_users()
     blocked = []
@@ -1827,8 +1827,8 @@ def admin_forgot_password():
 @app.route("/api/admin/unlock_user", methods=["POST"])
 def admin_unlock_user():
     user = current_user()
-    if not user or not is_owner_login(user["login"]):
-        return jsonify({"error": "Только владелец"}), 403
+    if not user or not is_deputy_or_owner(user):
+        return jsonify({"error": "Недостаточно прав"}), 403
     data = request.get_json(silent=True) or {}
     login = str(data.get("login", "")).strip().lower()
     if not login:
@@ -1847,8 +1847,8 @@ def admin_unlock_user():
 @app.route("/api/admin/reset_password", methods=["POST"])
 def admin_reset_password():
     user = current_user()
-    if not user or not is_owner_login(user["login"]):
-        return jsonify({"error": "Только владелец"}), 403
+    if not user or not is_deputy_or_owner(user):
+        return jsonify({"error": "Недостаточно прав"}), 403
     data = request.get_json(silent=True) or {}
     login = str(data.get("login", "")).strip().lower()
     new_pass = str(data.get("password", "")).strip()
@@ -1871,8 +1871,8 @@ def admin_reset_password():
 @app.route("/api/admin/block_login", methods=["POST"])
 def admin_block_login():
     user = current_user()
-    if not user or not is_owner_login(user["login"]):
-        return jsonify({"error": "Только владелец"}), 403
+    if not user or not is_deputy_or_owner(user):
+        return jsonify({"error": "Недостаточно прав"}), 403
     data = request.get_json(silent=True) or {}
     login = str(data.get("login", "")).strip().lower()
     if not login:
