@@ -226,6 +226,8 @@ def public_info(u):
         "role": "" if hidden else user_role(u),
         "muted": bool(u.get("muted_until") and u["muted_until"] > time.time()),
         "muted_until": u.get("muted_until"),
+        "prefix": u.get("prefix", ""),
+        "extension": u.get("extension", ""),
     }
 
 
@@ -336,6 +338,8 @@ def me():
         "blocked": user.get("blocked", []),
         "hidden": user.get("hidden", []),
         "role_hidden": user.get("role_hidden", False),
+        "prefix": user.get("prefix", ""),
+        "extension": user.get("extension", ""),
     })
 
 
@@ -805,6 +809,50 @@ def profile_role_hidden():
                 u["role_hidden"] = hide
         save_users(users)
     return jsonify({"ok": True, "role_hidden": hide})
+
+
+@app.route("/api/admin/prefix", methods=["POST"])
+def admin_set_prefix():
+    admin, err = require_admin()
+    if err:
+        return err
+    if not can_manage_roles(admin):
+        return jsonify({"error": "Недостаточно прав"}), 403
+    data = request.get_json(silent=True) or {}
+    login = str(data.get("login", "")).strip().lower()
+    prefix = str(data.get("prefix", "")).strip()[:50]
+    if not login:
+        return jsonify({"error": "Укажите логин"}), 400
+    if not find_user(login):
+        return jsonify({"error": "Пользователь не найден"}), 404
+    with lock:
+        users = load_users()
+        for u in users:
+            if u["login"].lower() == login:
+                u["prefix"] = prefix
+        save_users(users)
+    return jsonify({"ok": True, "prefix": prefix})
+
+
+@app.route("/api/admin/extension", methods=["POST"])
+def admin_set_extension():
+    admin, err = require_admin()
+    if err:
+        return err
+    data = request.get_json(silent=True) or {}
+    login = str(data.get("login", "")).strip().lower()
+    extension = str(data.get("extension", "")).strip()[:20]
+    if not login:
+        return jsonify({"error": "Укажите логин"}), 400
+    if not find_user(login):
+        return jsonify({"error": "Пользователь не найден"}), 404
+    with lock:
+        users = load_users()
+        for u in users:
+            if u["login"].lower() == login:
+                u["extension"] = extension
+        save_users(users)
+    return jsonify({"ok": True, "extension": extension})
 
 
 @app.route("/api/profile/avatar", methods=["POST"])

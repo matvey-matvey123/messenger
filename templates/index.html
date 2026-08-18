@@ -94,6 +94,7 @@
   .badge.gold { background: var(--gold); color: #000; }
   .badge.blue { background: var(--blue); color: #fff; }
   .badge.mutedb { background: var(--gray); }
+  .badge.prefix-b { background: #7c3aed20; color: #7c3aed; border: 1px solid #7c3aed40; }
   .badge.senior { background: var(--gold); color: #000; }
   .badge.junior { background: #b3403a; color: #fff; }
   .user-list .empty { color: var(--muted); font-size: 13px; padding: 12px; text-align: center; }
@@ -543,6 +544,55 @@
     </div>
   </div>
 
+  <!-- User Profile Modal -->
+  <div id="userProfileModal" class="overlay hidden">
+    <div class="admin-box prof-box">
+      <header><h2 id="upTitle">Профиль</h2><button id="upClose" class="xbtn">×</button></header>
+      <div class="admin-content">
+        <div class="prof-av-row">
+          <div id="upAvatar" class="avatar"></div>
+          <div>
+            <div id="upName" style="font-size:18px;font-weight:700;"></div>
+            <div id="upLogin" style="font-size:13px;color:var(--muted);"></div>
+            <div id="upPrefix" class="badge" style="display:inline-block;margin-top:4px;"></div>
+          </div>
+        </div>
+        <div id="upInfoSection">
+          <div class="prof-row">
+            <label>Бизнес / Префикс</label>
+            <div id="upBusiness" style="font-size:14px;">—</div>
+          </div>
+          <div class="prof-row">
+            <label>Добавочный номер</label>
+            <div id="upExtension" style="font-size:14px;">—</div>
+          </div>
+          <div class="prof-row">
+            <label>Статус</label>
+            <div id="upMuteStatus" style="font-size:14px;"></div>
+          </div>
+        </div>
+        <div id="upAdminSection" class="hidden">
+          <div class="prof-row">
+            <label>Управление</label>
+            <div class="prof-actions" style="flex-wrap:wrap;">
+              <input id="upPrefixInput" placeholder="Префикс (напр. Яндекс Такси)" style="flex:1;min-width:150px;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);padding:10px 12px;font-size:14px;outline:none;">
+              <button id="upPrefixSave" class="btn green">Сохранить префикс</button>
+            </div>
+            <div class="prof-actions" style="flex-wrap:wrap;margin-top:8px;">
+              <input id="upExtInput" placeholder="Добавочный номер (напр. 100)" style="flex:1;min-width:150px;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);padding:10px 12px;font-size:14px;outline:none;">
+              <button id="upExtSave" class="btn green">Сохранить номер</button>
+            </div>
+          </div>
+          <div class="prof-row">
+            <label>Действия</label>
+            <div class="prof-actions" style="flex-wrap:wrap;" id="upActions"></div>
+          </div>
+        </div>
+        <div id="upMsg" class="prof-msg"></div>
+      </div>
+    </div>
+  </div>
+
 <script>
 (function () {
   const $ = (id) => document.getElementById(id);
@@ -691,6 +741,7 @@
   // ---------- Sidebar ----------
   function nameBadges(u) {
     const badges = [];
+    if (u.prefix) badges.push({ cls: 'badge prefix-b', text: u.prefix });
     const ri = roleInfo(u);
     if (ri) badges.push({ cls: ri.cls, text: ri.text });
     if (u.muted) badges.push({ cls: 'badge mutedb', text: '🔇 ' + (u.muted_until ? fmtMute(u.muted_until) : '') });
@@ -774,6 +825,8 @@
     const protect = u.is_owner && me.login !== 'admin';
 
     items.push({ label: 'Начать личный чат', fn: () => openPrivateChat(u), disabled: u.login === me.login });
+
+    items.push({ label: 'Просмотреть профиль', fn: () => showUserProfile(u) });
 
     if (u.login !== me.login && !protect) {
       items.push({ label: u.iBlocked ? 'Разблокировать' : 'Заблокировать', fn: async () => {
@@ -884,7 +937,7 @@
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
       elCtxMenu.classList.add('hidden');
-      hideProfile(); hideSettings(); closeAdmin();
+      hideProfile(); hideSettings(); closeAdmin(); hideUserProfile();
     }
   });
 
@@ -2152,6 +2205,164 @@
       elPrivatesList.appendChild(btn);
     }
   }
+
+  // ---------- User Profile ----------
+  let upUser = null;
+
+  function formatMutedTime(until) {
+    if (!until) return '';
+    const diff = Math.ceil((until - Date.now()/1000) / 60);
+    if (diff <= 0) return 'Не замучен';
+    if (diff < 60) return 'Замучен на ' + diff + ' мин.';
+    if (diff < 1440) return 'Замучен на ' + Math.floor(diff/60) + ' ч. ' + (diff%60) + ' мин.';
+    return 'Замучен на ' + Math.floor(diff/1440) + ' дн.';
+  }
+
+  function roleLabel(u) {
+    if (u.is_owner) return 'Владелец';
+    if (u.is_admin) {
+      if (u.role === 'senior_admin') return 'Старший админ';
+      if (u.role === 'junior_admin') return 'Младший админ';
+      return 'Админ';
+    }
+    return 'Пользователь';
+  }
+
+  window.showUserProfile = function(u) {
+    upUser = u;
+    elCtxMenu.classList.add('hidden');
+    $('upTitle').textContent = 'Профиль: @' + u.login;
+    $('upName').textContent = u.name;
+    $('upLogin').textContent = '@' + u.login;
+    const avEl = $('upAvatar');
+    if (u.avatar) { avEl.innerHTML = '<img src="' + u.avatar + '" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">'; }
+    else { avEl.innerHTML = '<span>' + u.name[0].toUpperCase() + '</span>'; }
+
+    const prefixEl = $('upPrefix');
+    if (u.prefix) {
+      prefixEl.textContent = u.prefix;
+      prefixEl.style.display = 'inline-block';
+    } else {
+      prefixEl.style.display = 'none';
+    }
+
+    $('upBusiness').textContent = u.prefix || '—';
+    $('upExtension').textContent = u.extension || '—';
+    $('upMuteStatus').innerHTML = u.muted
+      ? '<span style="color:var(--danger);">🔇 ' + formatMutedTime(u.muted_until) + '</span>'
+      : '<span style="color:var(--muted);">Активен</span>';
+
+    const isSenior = me.role === 'senior_admin' || me.is_owner;
+    const protect = u.is_owner && me.login !== 'admin';
+
+    $('upAdminSection').classList.toggle('hidden', !isSenior);
+    if (isAdmin && !protect) {
+      $('upPrefixInput').value = u.prefix || '';
+      $('upExtInput').value = u.extension || '';
+
+      const actionsEl = $('upActions');
+      actionsEl.innerHTML = '';
+
+      if (isSenior) {
+        const muteBtn = document.createElement('button');
+        muteBtn.className = 'btn';
+        muteBtn.textContent = u.muted ? '🔇 Снять мут' : '🔇 Замутить';
+        muteBtn.onclick = async () => {
+          if (u.muted) {
+            await api('/api/admin/unmute', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: u.login }) });
+            u.muted = false; u.muted_until = null;
+          } else {
+            const min = prompt('Замутить на сколько минут? (1–1440)', '5');
+            const m = parseInt(min, 10);
+            if (!m || m < 1) return;
+            const r = await api('/api/admin/mute', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: u.login, minutes: m }) });
+            u.muted = true; u.muted_until = r.muted_until;
+          }
+          showUserProfile(u);
+          renderUsers();
+        };
+        actionsEl.appendChild(muteBtn);
+      }
+
+      if (!u.is_owner) {
+        if (!u.is_admin && isSenior) {
+          const promoteJ = document.createElement('button');
+          promoteJ.className = 'btn';
+          promoteJ.textContent = '⬆ Младший админ';
+          promoteJ.onclick = async () => {
+            await api('/api/admin/promote', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: u.login, role: 'junior_admin' }) });
+            u.is_admin = true; u.role = 'junior_admin';
+            showUserProfile(u); renderUsers();
+          };
+          actionsEl.appendChild(promoteJ);
+          if (me.is_owner) {
+            const promoteS = document.createElement('button');
+            promoteS.className = 'btn';
+            promoteS.textContent = '⬆ Старший админ';
+            promoteS.onclick = async () => {
+              await api('/api/admin/promote', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: u.login, role: 'senior_admin' }) });
+              u.is_admin = true; u.role = 'senior_admin';
+              showUserProfile(u); renderUsers();
+            };
+            actionsEl.appendChild(promoteS);
+          }
+        }
+        if (u.is_admin && isSenior) {
+          const demoteBtn = document.createElement('button');
+          demoteBtn.className = 'btn';
+          demoteBtn.textContent = '⬇ Разжаловать';
+          demoteBtn.onclick = async () => {
+            if (!confirm('Разжаловать @' + u.login + '?')) return;
+            await api('/api/admin/demote', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: u.login }) });
+            u.is_admin = false; u.role = '';
+            showUserProfile(u); renderUsers();
+          };
+          actionsEl.appendChild(demoteBtn);
+        }
+        if ((me.is_admin || me.is_owner) && u.login !== me.login) {
+          const blockBtn = document.createElement('button');
+          blockBtn.className = 'btn danger';
+          blockBtn.textContent = u.iBlocked ? '🔓 Разблокировать' : '🚫 Заблокировать';
+          blockBtn.onclick = async () => {
+            await api('/api/users/' + (u.iBlocked ? 'unblock' : 'block'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: u.login }) });
+            u.iBlocked = !u.iBlocked;
+            showUserProfile(u); renderUsers();
+          };
+          actionsEl.appendChild(blockBtn);
+        }
+      }
+    }
+
+    $('userProfileModal').classList.remove('hidden');
+  };
+
+  function hideUserProfile() { $('userProfileModal').classList.add('hidden'); }
+
+  $('upClose').addEventListener('click', hideUserProfile);
+  $('upPrefixSave').addEventListener('click', async () => {
+    if (!upUser) return;
+    try {
+      const prefix = $('upPrefixInput').value.trim();
+      await api('/api/admin/prefix', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: upUser.login, prefix }) });
+      upUser.prefix = prefix;
+      $('upMsg').textContent = '✅ Префикс сохранён';
+      setTimeout(() => $('upMsg').textContent = '', 2000);
+      showUserProfile(upUser);
+      renderUsers();
+    } catch (err) { $('upMsg').textContent = '❌ ' + err; }
+  });
+  $('upExtSave').addEventListener('click', async () => {
+    if (!upUser) return;
+    try {
+      const extension = $('upExtInput').value.trim();
+      await api('/api/admin/extension', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: upUser.login, extension }) });
+      upUser.extension = extension;
+      $('upMsg').textContent = '✅ Номер сохранён';
+      setTimeout(() => $('upMsg').textContent = '', 2000);
+      showUserProfile(upUser);
+      renderUsers();
+    } catch (err) { $('upMsg').textContent = '❌ ' + err; }
+  });
 
   // ---------- Init ----------
   checkMe();
