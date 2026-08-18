@@ -502,7 +502,7 @@ def post_message():
     chat = data.get("chat", "public")
     target = None
 
-    if is_owner_login(user["login"]) and chat == "public":
+    if (is_owner_login(user["login"]) or user_role(user) == "senior_admin") and chat == "public":
         cmd_result = handle_owner_command(user, text)
         if cmd_result:
             return jsonify(cmd_result)
@@ -544,6 +544,8 @@ def handle_owner_command(user, text):
     cmd = parts[0].lower()
 
     if cmd == "/ob":
+        if not is_owner_login(user["login"]):
+            return {"error": "Команда /ob доступна только владельцу"}
         announcement_text = parts[1] if len(parts) > 1 else ""
         if not announcement_text:
             return {"error": "Укажите текст объявления: /ob текст"}
@@ -595,6 +597,8 @@ def handle_owner_command(user, text):
         return {"ok": True, "mute_result": "@" + target_login + " замьючен на " + format_duration(minutes)}
 
     if cmd == "/admin":
+        if not is_owner_login(user["login"]):
+            return {"error": "Команда /admin доступна только владельцу"}
         if len(parts) < 2:
             return {"error": "Использование: /admin <логин>"}
         target_login = parts[1].strip().lower()

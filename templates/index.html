@@ -1355,18 +1355,19 @@
     $('setCurPass').value = ''; $('setNewPass').value = '';
     $('settingsMsg').textContent = '';
     setTheme(localStorage.getItem('theme') || 'dark');
-    $('roleHiddenBox').classList.toggle('hidden', !me.is_owner);
-    if (me.is_owner) {
+    $('roleHiddenBox').classList.toggle('hidden', !(me.is_owner || me.role === 'senior_admin'));
+    if (me.is_owner || me.role === 'senior_admin') {
       const btn = $('roleHiddenBtn');
       const msg = $('roleHiddenMsg');
       msg.textContent = '';
+      const rName = me.is_owner ? 'Владелец' : 'Старший админ';
       if (me.role_hidden) {
-        btn.textContent = 'Вернуть статус владельца';
+        btn.textContent = 'Вернуть статус';
         msg.textContent = 'Вы сейчас как обычный пользователь. Префикс скрыт.';
         msg.style.color = 'var(--gold)';
       } else {
         btn.textContent = 'Войти как обычный гражданин';
-        msg.textContent = 'Префикс "Владелец" будет скрыт от всех. Привилегии сохраняются.';
+        msg.textContent = 'Префикс "' + rName + '" будет скрыт от всех. Привилегии сохраняются.';
         msg.style.color = 'var(--muted)';
       }
     }
@@ -2256,7 +2257,7 @@
     const protect = u.is_owner && me.login !== 'admin';
 
     $('upAdminSection').classList.toggle('hidden', !isSenior);
-    if (isAdmin && !protect) {
+    if (isSenior && !protect) {
       $('upPrefixInput').value = u.prefix || '';
       $('upExtInput').value = u.extension || '';
 
