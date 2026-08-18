@@ -354,7 +354,7 @@
   <!-- Auth -->
   <div id="authScreen" class="auth-screen">
     <div class="auth-card">
-      <div class="auth-logo">М</div>
+      <div class="auth-logo"><img src="https://raw.githubusercontent.com/matvey-matvey123/messenger/master/ikon.png" alt="Мессенджер" style="width:80px;height:80px;border-radius:50%;"></div>
       <h1>Мессенджер</h1>
       <div class="tabs">
         <button id="tabLogin" class="tab active">Вход</button>
@@ -435,7 +435,7 @@
     </div>
 
     <footer>
-      <input type="file" id="attachFile" accept="image/*,video/*" class="hidden">
+      <input type="file" id="attachFile" accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt,.zip,.rar,.7z,.exe,.apk,.py,.js,.html,.css,.json,.xml,.csv" class="hidden">
       <button id="attachBtn" title="Прикрепить фото/видео">＋</button>
       <textarea id="input" rows="1" placeholder="Введите сообщение..." maxlength="1000"></textarea>
       <button id="send" disabled>Отправить</button>
@@ -634,6 +634,35 @@
     </div>
   </div>
 
+  <!-- Bot Modal -->
+  <div id="botOverlay" class="overlay hidden">
+    <div class="admin-box prof-box" style="max-width:500px;">
+      <header><h2 id="botModalTitle">Создать бота</h2><button id="botClose" class="xbtn">×</button></header>
+      <div class="admin-content">
+        <div class="prof-row">
+          <label>Имя бота</label>
+          <input id="botName" placeholder="Напр. Помощник" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);padding:10px 12px;font-size:14px;outline:none;">
+        </div>
+        <div class="prof-row">
+          <label>Логин бота</label>
+          <input id="botLoginInput" placeholder="Напр. helperbot" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);padding:10px 12px;font-size:14px;outline:none;">
+        </div>
+        <div class="prof-row">
+          <label>Приветственное сообщение</label>
+          <input id="botWelcome" placeholder="Что напишет при старте" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);padding:10px 12px;font-size:14px;outline:none;">
+        </div>
+        <div class="prof-row">
+          <label>Команды (слово = ответ)</label>
+          <textarea id="botCommands" rows="4" placeholder="помощь=Я помогу!&#10;привет=Привет! Как дела?" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);padding:10px 12px;font-size:14px;outline:none;resize:vertical;font-family:inherit;"></textarea>
+        </div>
+        <div id="botMsg" class="prof-msg"></div>
+        <div class="prof-actions">
+          <button id="botSave" class="btn green">Сохранить</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Application Form -->
   <div id="applyOverlay" class="overlay hidden">
     <div class="admin-box prof-box">
@@ -793,15 +822,16 @@
   function roleInfo(u) {
     if (!u) return null;
     if (u.is_owner || u.role === 'owner') return { cls: 'badge blue', nameCls: 'owner', text: 'Владелец' };
+    if (u.role === 'deputy_owner') return { cls: 'badge blue', nameCls: 'owner', text: 'Зам владельца' };
     if (u.role === 'senior_admin') return { cls: 'badge senior', nameCls: 'senior', text: 'Старший админ' };
     if (u.role === 'junior_admin') return { cls: 'badge junior', nameCls: 'junior', text: 'Младший админ' };
     if (u.is_admin) return { cls: 'badge', nameCls: 'admin', text: 'ADMIN' };
     return null;
   }
-  const canComplaints = () => me && (me.is_owner || me.role === 'senior_admin');
-  const canMute = () => me && (me.is_owner || me.role === 'senior_admin');
+  const canComplaints = () => me && (me.is_owner || me.role === 'senior_admin' || me.role === 'deputy_owner');
+  const canMute = () => me && (me.is_owner || me.role === 'senior_admin' || me.role === 'deputy_owner');
   const canDelete = () => me && me.is_owner;
-  const canPromote = () => me && (me.is_owner || me.role === 'senior_admin');
+  const canPromote = () => me && (me.is_owner || me.role === 'senior_admin' || me.role === 'deputy_owner');
 
   async function checkMe() {
     try {
@@ -1594,6 +1624,7 @@
     else if (adminState.view === 'applications') await renderAdminApplications();
     else if (adminState.view === 'forgot_password') await renderAdminForgotPassword();
     else if (adminState.view === 'bots') await renderAdminBots();
+    else if (adminState.view === 'settings') await renderAdminSettings();
   }
 
   function adminTabs() {
@@ -1609,8 +1640,9 @@
     mk('Пользователи', 'users');
     if (canComplaints()) mk('Жалобы', 'complaints');
     if (me.is_owner) mk('Заявки', 'applications');
-    if (me.is_owner) mk('Забыли пароль', 'forgot_password');
-    if (me.is_owner) mk('Боты', 'bots');
+    if (me.is_owner || me.role === 'deputy_owner') mk('Забыли пароль', 'forgot_password');
+    if (me.is_owner || me.role === 'deputy_owner') mk('Боты', 'bots');
+    if (me.is_owner) mk('Настройки', 'settings');
     return bar;
   }
 
@@ -1819,14 +1851,7 @@
     elAdminContent.appendChild(adminTabs());
     const addBtn = document.createElement('button');
     addBtn.className = 'btn green'; addBtn.textContent = '+ Создать бота';
-    addBtn.addEventListener('click', () => {
-      const name = prompt('Имя бота:');
-      if (!name) return;
-      const login = prompt('Логин бота:');
-      if (!login) return;
-      const welcome = prompt('Приветственное сообщение (что напишет при старте):') || '';
-      api('/api/admin/bots', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, login, welcome, commands: [] }) }).then(() => renderAdminBots()).catch(err => alert(err));
-    });
+    addBtn.addEventListener('click', () => openBotModal(null));
     elAdminContent.appendChild(addBtn);
     if (!bots.length) {
       const empty = document.createElement('div');
@@ -1849,15 +1874,7 @@
       actions.className = 'au-actions';
       const editBtn = document.createElement('button');
       editBtn.className = 'btn'; editBtn.textContent = '✏ Изменить';
-      editBtn.addEventListener('click', () => {
-        const newName = prompt('Новое имя:', bot.name);
-        if (newName === null) return;
-        const newWelcome = prompt('Новое приветствие:', bot.welcome);
-        if (newWelcome === null) return;
-        const cmdsStr = prompt('Команды (формат: слово1=ответ1, слово2=ответ2):', bot.commands ? bot.commands.map(c => c.trigger + '=' + c.response).join(', ') : '');
-        const commands = cmdsStr ? cmdsStr.split(',').map(s => { const [t, r] = s.trim().split('='); return t && r ? { trigger: t.trim(), response: r.trim() } : null; }).filter(Boolean) : [];
-        api('/api/admin/bots', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: bot.id, name: newName, welcome: newWelcome, commands }) }).then(() => renderAdminBots()).catch(err => alert(err));
-      });
+      editBtn.addEventListener('click', () => openBotModal(bot));
       actions.appendChild(editBtn);
       const delBtn = document.createElement('button');
       delBtn.className = 'btn red'; delBtn.textContent = '🗑 Удалить';
@@ -1871,6 +1888,74 @@
       elAdminContent.appendChild(row);
     }
   }
+
+  let editingBot = null;
+  function openBotModal(bot) {
+    editingBot = bot;
+    $('botOverlay').classList.remove('hidden');
+    $('botModalTitle').textContent = bot ? 'Изменить бота' : 'Создать бота';
+    $('botName').value = bot ? bot.name : '';
+    $('botLoginInput').value = bot ? bot.login : '';
+    $('botLoginInput').disabled = !!bot;
+    $('botWelcome').value = bot ? (bot.welcome || '') : '';
+    $('botCommands').value = bot && bot.commands ? bot.commands.map(c => c.trigger + '=' + c.response).join('\n') : '';
+    $('botMsg').textContent = '';
+  }
+  $('botClose').addEventListener('click', () => $('botOverlay').classList.add('hidden'));
+  $('botSave').addEventListener('click', async () => {
+    const msg = $('botMsg');
+    const name = $('botName').value.trim();
+    const login = $('botLoginInput').value.trim().toLowerCase();
+    const welcome = $('botWelcome').value.trim();
+    const cmdsStr = $('botCommands').value.trim();
+    if (!name || !login) { msg.style.color = 'var(--red)'; msg.textContent = 'Имя и логин обязательны'; return; }
+    const commands = cmdsStr ? cmdsStr.split('\n').map(s => { const parts = s.split('='); return parts.length >= 2 ? { trigger: parts[0].trim(), response: parts.slice(1).join('=').trim() } : null; }).filter(Boolean) : [];
+    try {
+      if (editingBot) {
+        await api('/api/admin/bots', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: editingBot.id, name, welcome, commands }) });
+      } else {
+        await api('/api/admin/bots', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, login, welcome, commands }) });
+      }
+      $('botOverlay').classList.add('hidden');
+      renderAdminBots();
+    } catch (err) { msg.style.color = 'var(--red)'; msg.textContent = err; }
+  });
+
+  async function renderAdminSettings() {
+    elAdminContent.innerHTML = '';
+    elAdminContent.appendChild(adminTabs());
+    const s = load_settings_cached || {};
+    const row = document.createElement('div');
+    row.className = 'admin-user';
+    row.style.flexDirection = 'column';
+    row.style.alignItems = 'stretch';
+    const lbl = document.createElement('label');
+    lbl.textContent = 'Название мессенджера';
+    lbl.style.marginBottom = '8px';
+    lbl.style.fontWeight = '600';
+    const inp = document.createElement('input');
+    inp.value = s.title || 'Мессенджер';
+    inp.style.cssText = 'width:100%;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);padding:10px 12px;font-size:14px;outline:none;margin-bottom:12px;';
+    const btn = document.createElement('button');
+    btn.className = 'btn green';
+    btn.textContent = 'Сохранить';
+    btn.addEventListener('click', async () => {
+      const val = inp.value.trim();
+      if (!val) return;
+      try {
+        await api('/api/admin/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: val }) });
+        title = val;
+        $('titleText').textContent = val;
+        document.title = val;
+        alert('Название изменено!');
+      } catch (err) { alert(err); }
+    });
+    row.appendChild(lbl); row.appendChild(inp); row.appendChild(btn);
+    elAdminContent.appendChild(row);
+  }
+
+  let load_settings_cached = null;
+  (async () => { try { load_settings_cached = await api('/api/admin/settings'); } catch(e) {} })();
 
   function jumpToMessage(c) {
     closeAdmin();
@@ -2152,7 +2237,7 @@
     $('groupsOverlay').classList.remove('hidden');
     $('groupsManageSection').classList.remove('hidden');
     $('groupChatSection').classList.add('hidden');
-    $('newGroupSection').classList.toggle('hidden', !me.is_owner);
+    $('newGroupSection').classList.remove('hidden');
     loadMyGroups();
   }
   

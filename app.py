@@ -38,7 +38,7 @@ ONLINE_TIMEOUT = 20
 OWNER_LOGIN = "admin"
 OWNER_NAME = "Матвей"
 OWNER_PASSWORD_HASH = "scrypt:32768:8:1$pxHWi9utB1Eyq6pb$fff0c31432bcd17249ebc50b680075ac381bf47a7775ae7b04adc23bd46ce985fbcfa5c6bfffd964926c1dd885953d9e631bcbffbadfc31922244583e6ad81a8"
-ALLOWED_EXT = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".mp4", ".webm", ".mov"}
+ALLOWED_EXT = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".mp4", ".webm", ".mov", ".mp3", ".wav", ".ogg", ".flac", ".aac", ".m4a", ".pdf", ".doc", ".docx", ".txt", ".zip", ".rar", ".7z", ".exe", ".apk", ".py", ".js", ".html", ".css", ".json", ".xml", ".csv"}
 IMAGE_EXT = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
 VIDEO_EXT = {".mp4", ".webm", ".mov"}
 
@@ -174,6 +174,13 @@ def ensure_owner():
                 found = u
                 break
         if found is None:
+            for u in users:
+                if u["login"].lower() == "zamadmin":
+                    u["login"] = OWNER_LOGIN
+                    found = u
+                    changed = True
+                    break
+        if found is None:
             users.append(owner_user())
             changed = True
         else:
@@ -220,11 +227,15 @@ def is_owner_login(login):
     return (login or "").strip().lower() == OWNER_LOGIN
 
 
+def is_deputy_or_owner(user):
+    return is_owner_login(user.get("login", "")) or user.get("role") == "deputy_owner"
+
+
 def user_role(u):
     if is_owner_login(u.get("login", "")):
         return "owner"
     role = u.get("role", "") or ""
-    if role in ("senior_admin", "junior_admin"):
+    if role in ("senior_admin", "junior_admin", "deputy_owner"):
         return role
     return "admin" if u.get("is_admin") else ""
 
@@ -578,7 +589,7 @@ def post_message():
         if user_cmd:
             return jsonify(user_cmd)
 
-    if (is_owner_login(user["login"]) or user_role(user) == "senior_admin") and chat == "public":
+    if (is_deputy_or_owner(user) or user_role(user) == "senior_admin") and chat == "public":
         cmd_result = handle_owner_command(user, text)
         if cmd_result:
             return jsonify(cmd_result)
@@ -693,9 +704,10 @@ def handle_owner_command(user, text):
         return None
     parts = text.split(None, 2)
     cmd = parts[0].lower()
+    role = user_role(user)
 
     if cmd == "/ob":
-        if not is_owner_login(user["login"]):
+        if not is_deputy_or_owner(user):
             return {"error": "Команда /ob доступна только владельцу"}
         announcement_text = parts[1] if len(parts) > 1 else ""
         if not announcement_text:
@@ -748,8 +760,8 @@ def handle_owner_command(user, text):
         return {"ok": True, "mute_result": "@" + target_login + " замьючен на " + format_duration(minutes)}
 
     if cmd == "/admin":
-        if not is_owner_login(user["login"]):
-            return {"error": "Команда /admin доступна только владельцу"}
+        if not is_deputy_or_owner(user):
+            return {"error": "Команда /admin доступна только владельцу и заму"}
         if len(parts) < 2:
             return {"error": "Использование: /admin <логин>"}
         target_login = parts[1].strip().lower()
@@ -763,6 +775,24 @@ def handle_owner_command(user, text):
                     u["role"] = "junior_admin"
             save_users(users)
         return {"ok": True, "mute_result": "@" + target_login + " теперь младший админ"}
+
+    if cmd == "/deputy":
+        if not is_owner_login(user["login"]):
+            return {"error": "Команда /deputy доступна только владельцу"}
+        if len(parts) < 2:
+            return {"error": "Использование: /deputy <логин>"}
+        target_login = parts[1].strip().lower()
+        target_u = find_user(target_login)
+        if not target_u:
+            return {"error": "Пользователь @" + target_login + " не найден"}
+        with lock:
+            users = load_users()
+            for u in users:
+                if u["login"].lower() == target_login:
+                    u["is_admin"] = True
+                    u["role"] = "deputy_owner"
+            save_users(users)
+        return {"ok": True, "mute_result": "@" + target_login + " теперь зам владельца"}
 
     return None
 
@@ -789,7 +819,7 @@ def handle_user_command(user, text):
 
     if cmd == "/give":
         role = user_role(user)
-        if role not in ("senior_admin", "owner"):
+        if role not in ("senior_admin", "owner", "deputy_owner"):
             return {"error": "Команда /give доступна только старшему админу и владельцу"}
         if len(parts) < 3:
             return {"error": "Использование: /give <логин> <сумма>"}
@@ -798,8 +828,8 @@ def handle_user_command(user, text):
             amount = int(parts[2])
         except (ValueError, TypeError):
             return {"error": "Укажите числовую сумму"}
-        if amount <= 0 or amount > 10000:
-            return {"error": "Сумма от 1 до 10000"}
+        if amount <= 0:
+            return {"error": "Сумма должна быть больше 0"}
         if not find_user(target_login):
             return {"error": "Пользователь @" + target_login + " не найден"}
         with lock:
@@ -812,7 +842,7 @@ def handle_user_command(user, text):
 
     if cmd == "/pred":
         role = user_role(user)
-        if role not in ("senior_admin", "owner"):
+        if role not in ("senior_admin", "owner", "deputy_owner"):
             return {"error": "Команда /pred доступна только старшему админу и владельцу"}
         if len(parts) < 2:
             return {"error": "Использование: /pred <логин>"}
@@ -1398,7 +1428,7 @@ def admin_bot_create():
             "id": max([u["id"] for u in users], default=0) + 1,
             "login": bot_login,
             "name": name,
-            "password": generate_password_hash(str(bot_id)),
+            "password": generate_password_hash("bot123"),
             "is_admin": False,
             "is_bot": True,
             "blocked": [],
@@ -1466,6 +1496,25 @@ def admin_bot_delete():
     return jsonify({"ok": True})
 
 
+# ---------- Admin Settings ----------
+
+@app.route("/api/admin/settings", methods=["GET", "POST"])
+def admin_settings():
+    if request.method == "GET":
+        return jsonify(load_settings())
+    admin, err = require_admin()
+    if err:
+        return err
+    if not is_deputy_or_owner(admin):
+        return jsonify({"error": "Недостаточно прав"}), 403
+    data = request.get_json(silent=True) or {}
+    s = load_settings()
+    if "title" in data:
+        s["title"] = str(data["title"])[:100]
+    save_settings(s)
+    return jsonify({"ok": True, "title": s.get("title", "Мессенджер")})
+
+
 # ---------- Groups ----------
 
 GROUPS_FILE = os.path.join(APP_DIR, "groups.json")
@@ -1513,8 +1562,6 @@ def create_group():
     user = current_user()
     if not user:
         return jsonify({"error": "Войдите в аккаунт"}), 401
-    if not is_owner_login(user["login"]):
-        return jsonify({"error": "Только владелец может создавать группы"}), 403
     data = request.get_json(silent=True) or {}
     name = str(data.get("name", "")).strip()[:50]
     members = data.get("members", [])
@@ -1575,10 +1622,11 @@ def delete_group():
         return jsonify({"error": "Войдите в аккаунт"}), 401
     data = request.get_json(silent=True) or {}
     gid = int(data.get("id", 0))
-    if not is_owner_login(user["login"]):
-        return jsonify({"error": "Только владелец"}), 403
     with lock:
         groups = load_groups()
+        g = next((g for g in groups if g["id"] == gid), None)
+        if g and user["login"].lower() != g["owner"] and user["login"].lower() != OWNER_LOGIN:
+            return jsonify({"error": "Только владелец группы может удалить"}), 403
         groups = [g for g in groups if g["id"] != gid]
         save_groups(groups)
     return jsonify({"ok": True})
@@ -1594,10 +1642,12 @@ def group_message():
     text = str(data.get("text", "")).strip()[:1000]
     if not text:
         return jsonify({"error": "Пустое сообщение"}), 400
+    found = False
     with lock:
         groups = load_groups()
         for g in groups:
             if g["id"] == gid:
+                found = True
                 if user["login"].lower() not in [m.lower() for m in g["members"]]:
                     return jsonify({"error": "Вы не участник группы"}), 403
                 msgs = load_messages()
@@ -1613,54 +1663,9 @@ def group_message():
                     "time": int(time.time()),
                     "read_by": [],
                 }
-        msgs.append(msg)
-        save_messages(msgs)
-        if chat == "public" and not user.get("is_bot"):
-            bots = load_bots()
-            text_lower = text.lower()
-            for bot_info in bots:
-                if bot_info["login"].lower() == user["login"].lower():
-                    continue
-                bot_user = find_user(bot_info["login"])
-                if not bot_user:
-                    continue
-                responded = False
-                for cmd in bot_info.get("commands", []):
-                    trig = cmd.get("trigger", "").lower()
-                    if trig and trig in text_lower:
-                        bot_msg = {
-                            "id": max([m["id"] for m in msgs], default=0) + 1,
-                            "chat": "public",
-                            "login": bot_user["login"],
-                            "name": bot_user["name"],
-                            "admin": False,
-                            "role": "",
-                            "type": "text",
-                            "text": cmd["response"],
-                            "time": int(time.time()),
-                            "read_by": [],
-                        }
-                        msgs.append(bot_msg)
-                        responded = True
-                        break
-                if not responded and ("@" + bot_info["login"].lower()) in text_lower:
-                    welcome = bot_info.get("welcome", "")
-                    if welcome:
-                        bot_msg = {
-                            "id": max([m["id"] for m in msgs], default=0) + 1,
-                            "chat": "public",
-                            "login": bot_user["login"],
-                            "name": bot_user["name"],
-                            "admin": False,
-                            "role": "",
-                            "type": "text",
-                            "text": welcome,
-                            "time": int(time.time()),
-                            "read_by": [],
-                        }
-                        msgs.append(bot_msg)
-            save_messages(msgs)
-        return jsonify(msg)
+                msgs.append(msg)
+                save_messages(msgs)
+                return jsonify(msg)
     return jsonify({"error": "Группа не найдена"}), 404
 
 
