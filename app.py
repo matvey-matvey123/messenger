@@ -233,6 +233,7 @@ def public_info(u):
         "muted": bool(u.get("muted_until") and u["muted_until"] > time.time()),
         "muted_until": u.get("muted_until"),
         "prefix": u.get("prefix", ""),
+        "prev_prefix": u.get("prev_prefix", ""),
         "extension": u.get("extension", ""),
         "is_bot": is_bot,
         "role_hidden": hidden,
@@ -906,9 +907,38 @@ def admin_set_prefix():
         users = load_users()
         for u in users:
             if u["login"].lower() == login:
+                if u.get("prefix") and u["prefix"] != prefix:
+                    u["prev_prefix"] = u["prefix"]
                 u["prefix"] = prefix
         save_users(users)
     return jsonify({"ok": True, "prefix": prefix})
+
+
+@app.route("/api/admin/restore_prefix", methods=["POST"])
+def admin_restore_prefix():
+    admin, err = require_admin()
+    if err:
+        return err
+    if not can_manage_roles(admin):
+        return jsonify({"error": "Недостаточно прав"}), 403
+    data = request.get_json(silent=True) or {}
+    login = str(data.get("login", "")).strip().lower()
+    if not login:
+        return jsonify({"error": "Укажите логин"}), 400
+    target = find_user(login)
+    if not target:
+        return jsonify({"error": "Пользователь не найден"}), 404
+    prev = target.get("prev_prefix", "")
+    if not prev:
+        return jsonify({"error": "Нет предыдущего префикса"}), 400
+    with lock:
+        users = load_users()
+        for u in users:
+            if u["login"].lower() == login:
+                u["prefix"] = prev
+                u["prev_prefix"] = ""
+        save_users(users)
+    return jsonify({"ok": True, "prefix": prev})
 
 
 @app.route("/api/admin/extension", methods=["POST"])

@@ -582,6 +582,7 @@
             <div class="prof-actions" style="flex-wrap:wrap;">
               <input id="upPrefixInput" placeholder="Префикс (напр. Яндекс Такси)" style="flex:1;min-width:150px;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);padding:10px 12px;font-size:14px;outline:none;">
               <button id="upPrefixSave" class="btn green">Сохранить префикс</button>
+              <button id="upPrefixRestore" class="btn">Вернуть префикс</button>
             </div>
             <div class="prof-actions" style="flex-wrap:wrap;margin-top:8px;">
               <input id="upExtInput" placeholder="Добавочный номер (напр. 100)" style="flex:1;min-width:150px;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);padding:10px 12px;font-size:14px;outline:none;">
@@ -2290,6 +2291,7 @@
     if (isSenior && !protect) {
       $('upPrefixInput').value = u.prefix || '';
       $('upExtInput').value = u.extension || '';
+      $('upPrefixRestore').style.display = u.prev_prefix ? '' : 'none';
 
       const actionsEl = $('upActions');
       actionsEl.innerHTML = '';
@@ -2389,6 +2391,18 @@
       await api('/api/admin/prefix', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: upUser.login, prefix }) });
       upUser.prefix = prefix;
       $('upMsg').textContent = '✅ Префикс сохранён';
+      setTimeout(() => $('upMsg').textContent = '', 2000);
+      showUserProfile(upUser);
+      renderUsers();
+    } catch (err) { $('upMsg').textContent = '❌ ' + err; }
+  });
+  $('upPrefixRestore').addEventListener('click', async () => {
+    if (!upUser) return;
+    try {
+      const r = await api('/api/admin/restore_prefix', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: upUser.login }) });
+      upUser.prefix = r.prefix;
+      upUser.prev_prefix = '';
+      $('upMsg').textContent = '✅ Префикс восстановлен: ' + r.prefix;
       setTimeout(() => $('upMsg').textContent = '', 2000);
       showUserProfile(upUser);
       renderUsers();
