@@ -1669,7 +1669,7 @@
     if (me.is_owner) mk('Заявки', 'applications');
     if (me.is_owner || me.role === 'deputy_owner') mk('Забыли пароль', 'forgot_password');
     if (me.is_owner || me.role === 'deputy_owner') mk('Боты', 'bots');
-    if (me.is_owner || me.role === 'deputy_owner' || me.role === 'senior_admin') mk('Запрещённое', 'banned_words');
+    if (me.is_owner) mk('Запрещённое', 'banned_words');
     if (me.is_owner) mk('Настройки', 'settings');
     return bar;
   }

@@ -1564,6 +1564,8 @@ def banned_words_list():
     admin, err = require_admin()
     if err:
         return err
+    if not is_full_owner(admin):
+        return jsonify({"error": "Только владелец"}), 403
     return jsonify(load_banned_words())
 
 
@@ -1572,6 +1574,8 @@ def banned_words_add():
     admin, err = require_admin()
     if err:
         return err
+    if not is_full_owner(admin):
+        return jsonify({"error": "Только владелец"}), 403
     data = request.get_json(silent=True) or {}
     word = str(data.get("word", "")).strip().lower()
     if not word:
@@ -1589,6 +1593,8 @@ def banned_words_delete():
     admin, err = require_admin()
     if err:
         return err
+    if not is_full_owner(admin):
+        return jsonify({"error": "Только владелец"}), 403
     data = request.get_json(silent=True) or {}
     word = str(data.get("word", "")).strip().lower()
     with lock:
