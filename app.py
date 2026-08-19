@@ -267,7 +267,7 @@ def can_manage_target(requester, target_login):
 
 
 def can_manage_roles(requester):
-    return user_role(requester) in ("owner", "senior_admin")
+    return is_full_owner(requester)
 
 
 def can_handle_complaints(requester):
@@ -2038,6 +2038,30 @@ def admin_users():
     return jsonify(result)
 
 
+@app.route("/api/admin/admins", methods=["GET"])
+def list_admins():
+    admin, err = require_admin()
+    if err:
+        return err
+    if not is_full_owner(admin):
+        return jsonify({"error": "Только владелец"}), 403
+    with lock:
+        users = load_users()
+    result = []
+    for u in users:
+        role = u.get("role", "")
+        is_a = u.get("is_admin", False)
+        if is_a or role in ("deputy_owner", "owner"):
+            result.append({
+                "login": u["login"],
+                "name": u.get("name", ""),
+                "role": role,
+                "is_admin": is_a,
+                "avatar": u.get("avatar", ""),
+            })
+    return jsonify(result)
+
+
 @app.route("/api/admin/promote", methods=["POST"])
 def admin_promote():
     admin, err = require_admin()
@@ -2048,7 +2072,7 @@ def admin_promote():
     data = request.get_json(silent=True) or {}
     login = str(data.get("login", "")).strip().lower()
     role = str(data.get("role", "junior_admin")).strip()
-    if role not in ("junior_admin", "senior_admin"):
+    if role not in ("junior_admin", "senior_admin", "deputy_owner"):
         return jsonify({"error": "Недопустимая роль"}), 400
     if not login:
         return jsonify({"error": "Укажите логин"}), 400

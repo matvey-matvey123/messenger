@@ -99,6 +99,8 @@
   .badge.prefix-b { background: #7c3aed20; color: #7c3aed; border: 1px solid #7c3aed40; }
   .badge.senior { background: var(--gold); color: #000; }
   .badge.junior { background: #b3403a; color: #fff; }
+  .badge.purple { background: #7c3aed; color: #fff; }
+  .badge.green { background: #16a34a; color: #fff; }
   .user-list .empty { color: var(--muted); font-size: 13px; padding: 12px; text-align: center; }
   .hidden-title { font-size: 11px; color: var(--muted); padding: 14px 12px 4px; font-weight: 700; }
   .sidebar-section { margin-bottom: 4px; }
@@ -1644,6 +1646,7 @@
 
   async function renderAdmin() {
     if (adminState.view === 'users') await renderAdminUsers();
+    else if (adminState.view === 'manage') await renderAdminManage();
     else if (adminState.view === 'chats') await renderAdminUserChats(adminState.user);
     else if (adminState.view === 'conv') await renderAdminConversation(adminState.user, adminState.partner);
     else if (adminState.view === 'complaints') await renderAdminComplaints();
@@ -1664,6 +1667,7 @@
       bar.appendChild(b);
     };
     mk('Пользователи', 'users');
+    if (me.is_owner) mk('Управление', 'manage');
     if (canComplaints()) mk('Жалобы', 'complaints');
     if (me.is_owner) mk('Заявки', 'applications');
     if (me.is_owner || me.role === 'deputy_owner') mk('Забыли пароль', 'forgot_password');
@@ -2185,6 +2189,95 @@
       draw(list.filter(u => u.login.toLowerCase().includes(q)));
     });
     draw(list);
+  }
+
+  async function renderAdminManage() {
+    elAdminContent.innerHTML = '';
+    elAdminContent.appendChild(adminTabs());
+    let admins = [];
+    try { admins = await api('/api/admin/admins'); }
+    catch (e) { elAdminContent.innerHTML += '<div class="admin-empty">' + e + '</div>'; return; }
+    const roleNames = { '': 'Пользователь', 'junior_admin': 'Младший админ', 'senior_admin': 'Старший админ', 'deputy_owner': 'Зам владельца', 'owner': 'Владелец' };
+    const roleClasses = { '': '', 'junior_admin': 'junior', 'senior_admin': 'senior', 'deputy_owner': 'gold', 'owner': 'purple' };
+    if (!admins.length) {
+      elAdminContent.innerHTML += '<div class="admin-empty">Нет администраторов</div>';
+      return;
+    }
+    for (const u of admins) {
+      const row = document.createElement('div');
+      row.className = 'admin-user';
+      const left = document.createElement('div');
+      left.style.cssText = 'display:flex;align-items:center;gap:10px;flex:1;min-width:0;';
+      const av = document.createElement('div');
+      av.className = 'cl-avatar';
+      av.style.background = colorFor(u.login);
+      av.textContent = (u.name || u.login)[0].toUpperCase();
+      left.appendChild(av);
+      const info = document.createElement('div');
+      info.style.minWidth = '0';
+      const nm = document.createElement('div');
+      nm.className = 'au-name';
+      nm.textContent = u.name + ' (@' + u.login + ')';
+      info.appendChild(nm);
+      const roleBadge = document.createElement('span');
+      roleBadge.className = 'badge ' + (roleClasses[u.role] || '');
+      roleBadge.textContent = roleNames[u.role] || u.role || 'Пользователь';
+      roleBadge.style.marginTop = '4px';
+      info.appendChild(roleBadge);
+      left.appendChild(info);
+      row.appendChild(left);
+      if (u.login.toLowerCase() !== me.login.toLowerCase() && u.login.toLowerCase() !== 'admin') {
+        const actions = document.createElement('div');
+        actions.className = 'prof-actions';
+        actions.style.gap = '4px';
+        if (u.role !== 'deputy_owner') {
+          const btnDep = document.createElement('button');
+          btnDep.className = 'btn gold';
+          btnDep.textContent = 'Зам';
+          btnDep.title = 'Назначить замом владельца';
+          btnDep.addEventListener('click', async () => {
+            await api('/api/admin/promote', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: u.login, role: 'deputy_owner' }) });
+            renderAdminManage();
+          });
+          actions.appendChild(btnDep);
+        }
+        if (u.role !== 'senior_admin') {
+          const btnSr = document.createElement('button');
+          btnSr.className = 'btn blue';
+          btnSr.textContent = 'Ст.админ';
+          btnSr.title = 'Назначить старшим админом';
+          btnSr.addEventListener('click', async () => {
+            await api('/api/admin/promote', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: u.login, role: 'senior_admin' }) });
+            renderAdminManage();
+          });
+          actions.appendChild(btnSr);
+        }
+        if (u.role !== 'junior_admin') {
+          const btnJr = document.createElement('button');
+          btnJr.className = 'btn green';
+          btnJr.textContent = 'Мл.админ';
+          btnJr.title = 'Назначить младшим админом';
+          btnJr.addEventListener('click', async () => {
+            await api('/api/admin/promote', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: u.login, role: 'junior_admin' }) });
+            renderAdminManage();
+          });
+          actions.appendChild(btnJr);
+        }
+        if (u.is_admin || u.role) {
+          const btnRemove = document.createElement('button');
+          btnRemove.className = 'btn red';
+          btnRemove.textContent = 'Снять';
+          btnRemove.title = 'Снять все права';
+          btnRemove.addEventListener('click', async () => {
+            await api('/api/admin/demote', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: u.login }) });
+            renderAdminManage();
+          });
+          actions.appendChild(btnRemove);
+        }
+        row.appendChild(actions);
+      }
+      elAdminContent.appendChild(row);
+    }
   }
 
   async function renderAdminUserChats(userLogin) {
