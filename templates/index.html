@@ -1647,6 +1647,7 @@
   async function renderAdmin() {
     if (adminState.view === 'users') await renderAdminUsers();
     else if (adminState.view === 'manage') await renderAdminManage();
+    else if (adminState.view === 'commands') renderAdminCommands();
     else if (adminState.view === 'chats') await renderAdminUserChats(adminState.user);
     else if (adminState.view === 'conv') await renderAdminConversation(adminState.user, adminState.partner);
     else if (adminState.view === 'complaints') await renderAdminComplaints();
@@ -1668,6 +1669,7 @@
     };
     mk('Пользователи', 'users');
     if (me.is_owner) mk('Управление', 'manage');
+    if (me.is_owner) mk('Команды', 'commands');
     if (canComplaints()) mk('Жалобы', 'complaints');
     if (me.is_owner) mk('Заявки', 'applications');
     if (me.is_owner || me.role === 'deputy_owner') mk('Забыли пароль', 'forgot_password');
@@ -2189,6 +2191,40 @@
       draw(list.filter(u => u.login.toLowerCase().includes(q)));
     });
     draw(list);
+  }
+
+  function renderAdminCommands() {
+    elAdminContent.innerHTML = '';
+    elAdminContent.appendChild(adminTabs());
+    const cmds = [
+      { cmd: '/ob <текст>', desc: 'Объявление всем пользователям', who: 'Владелец, Зам' },
+      { cmd: '/mute <логин> <время>', desc: 'Замутить пользователя (15m, 1h, 1d)', who: 'Ст.админ, Зам, Владелец' },
+      { cmd: '/admin <логин>', desc: 'Сделать младшим админом', who: 'Владелец, Зам' },
+      { cmd: '/deputy <логин>', desc: 'Сделать замом владельца', who: 'Только владелец' },
+      { cmd: '/free', desc: 'Получить 10 кока-коликов (1 раз в день)', who: 'Все' },
+      { cmd: '/give <логин> <сумма>', desc: 'Выдать кока-колики пользователю', who: 'Ст.админ, Зам, Владелец' },
+      { cmd: '/pred <логин>', desc: 'Выдать предупреждение (3=1ч, 6=2ч, 9=4ч, 12=10ч, 15=удаление)', who: 'Ст.админ, Зам, Владелец' },
+    ];
+    for (const c of cmds) {
+      const row = document.createElement('div');
+      row.style.cssText = 'padding:10px 12px;border-bottom:1px solid var(--border);';
+      const top = document.createElement('div');
+      top.style.cssText = 'display:flex;align-items:center;gap:8px;flex-wrap:wrap;';
+      const code = document.createElement('code');
+      code.style.cssText = 'background:var(--bg2,#1a1a2e);padding:2px 8px;border-radius:6px;font-size:13px;color:var(--accent);font-weight:600;';
+      code.textContent = c.cmd;
+      top.appendChild(code);
+      const who = document.createElement('span');
+      who.className = 'badge senior';
+      who.textContent = c.who;
+      top.appendChild(who);
+      row.appendChild(top);
+      const desc = document.createElement('div');
+      desc.style.cssText = 'font-size:12px;color:var(--muted);margin-top:4px;';
+      desc.textContent = c.desc;
+      row.appendChild(desc);
+      elAdminContent.appendChild(row);
+    }
   }
 
   async function renderAdminManage() {
