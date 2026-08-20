@@ -324,6 +324,7 @@ def public_info(u):
         "spam_blocked": u.get("spam_blocked", False),
         "warnings": u.get("warnings", 0),
         "tg_username": u.get("tg_username", ""),
+        "tg_verified": u.get("tg_verified", False),
     }
 
 
@@ -2736,8 +2737,8 @@ def _tg_bot_poll():
     while True:
         try:
             import urllib.request, urllib.parse
-            url = "https://api.telegram.org/bot" + TG_BOT_TOKEN + "/getUpdates?timeout=30&offset=" + str(offset)
-            resp = urllib.request.urlopen(url, timeout=35)
+            url = "https://api.telegram.org/bot" + TG_BOT_TOKEN + "/getUpdates?timeout=10&offset=" + str(offset)
+            resp = urllib.request.urlopen(url, timeout=15)
             data = json.loads(resp.read())
             for upd in data.get("result", []):
                 offset = upd["update_id"] + 1
@@ -2772,7 +2773,7 @@ def _tg_bot_poll():
                     else:
                         _tg_send(chat_id, "Добро пожаловать! Привяжите аккаунт на сайте.")
         except Exception:
-            time.sleep(3)
+            time.sleep(5)
 
 
 def _tg_send(chat_id, text):
@@ -2786,7 +2787,11 @@ def _tg_send(chat_id, text):
 
 ensure_owner()
 
-tg_thread = threading.Thread(target=_tg_bot_poll, daemon=True)
+def _safe_tg_bot_poll():
+    time.sleep(5)
+    _tg_bot_poll()
+
+tg_thread = threading.Thread(target=_safe_tg_bot_poll, daemon=True)
 tg_thread.start()
 
 if __name__ == "__main__":
