@@ -1,6 +1,8 @@
 import glob
 import json
 import os
+import random
+import string
 import threading
 import time
 import uuid
@@ -18,6 +20,8 @@ ANNOUNCEMENTS_FILE = os.path.join(APP_DIR, "announcements.json")
 APPLICATIONS_FILE = os.path.join(APP_DIR, "applications.json")
 BOTS_FILE = os.path.join(APP_DIR, "bots.json")
 BANNED_WORDS_FILE = os.path.join(APP_DIR, "banned_words.json")
+TG_BOT_TOKEN = "8617968405:AAGSTL0skpjjccxJGDxb6M6y-UlIVauwl84"
+TG_VERIFY_FILE = os.path.join(APP_DIR, "tg_verify.json")
 UPLOAD_DIR = os.path.join(APP_DIR, "uploads")
 AVATAR_DIR = os.path.join(UPLOAD_DIR, "avatars")
 MEDIA_DIR = os.path.join(UPLOAD_DIR, "media")
@@ -165,6 +169,21 @@ def load_banned_words():
 def save_banned_words(items):
     with open(BANNED_WORDS_FILE, "w", encoding="utf-8") as f:
         json.dump(items, f, ensure_ascii=False, indent=2)
+
+
+def load_tg_verify():
+    if not os.path.exists(TG_VERIFY_FILE):
+        return {}
+    try:
+        with open(TG_VERIFY_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return {}
+
+
+def save_tg_verify(data):
+    with open(TG_VERIFY_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
 
 
 def owner_user():
@@ -411,6 +430,8 @@ def login():
         "is_admin": user.get("is_admin", False), "is_owner": is_owner_login(user["login"]),
         "role": user_role(user),
         "avatar": user.get("avatar", ""),
+        "tg_username": user.get("tg_username", ""),
+        "tg_verified": user.get("tg_verified", False),
     })
 
 
@@ -450,6 +471,7 @@ def me():
         "spam_blocked": user.get("spam_blocked", False),
         "warnings": user.get("warnings", 0),
         "tg_username": user.get("tg_username", ""),
+        "tg_verified": user.get("tg_verified", False),
     })
 
 
@@ -1158,6 +1180,45 @@ def profile_tg_username():
                 u["tg_username"] = tg
         save_users(users)
     return jsonify({"ok": True, "tg_username": tg})
+
+
+@app.route("/api/tg/start_verify", methods=["POST"])
+def tg_start_verify():
+    user = current_user()
+    if not user:
+        return jsonify({"error": "Войдите в аккаунт"}), 401
+    data = request.get_json(silent=True) or {}
+    tg = str(data.get("tg_username", "")).strip().lstrip("@")[:50]
+    if not tg:
+        return jsonify({"error": "Укажите TG юзернейм"}), 400
+    code = "".join(random.choices(string.digits, k=6))
+    with lock:
+        verifs = load_tg_verify()
+        verifs[code] = {"login": user["login"], "tg_username": tg, "created_at": int(time.time())}
+        save_tg_verify(verifs)
+        users = load_users()
+        for u in users:
+            if u["login"].lower() == user["login"].lower():
+                u["tg_username"] = tg
+        save_users(users)
+    return jsonify({"ok": True, "code": code, "bot": "https://t.me/" + _bot_username()})
+
+
+@app.route("/api/tg/verify_status", methods=["GET"])
+def tg_verify_status():
+    user = current_user()
+    if not user:
+        return jsonify({"error": "Войдите в аккаунт"}), 401
+    with lock:
+        users = load_users()
+        for u in users:
+            if u["login"].lower() == user["login"].lower():
+                return jsonify({
+                    "tg_username": u.get("tg_username", ""),
+                    "tg_verified": u.get("tg_verified", False),
+                    "tg_user_id": u.get("tg_user_id", 0),
+                })
+    return jsonify({"tg_username": "", "tg_verified": False, "tg_user_id": 0})
 
 
 @app.route("/api/profile/role_hidden", methods=["POST"])
@@ -2654,7 +2715,79 @@ def call_signals():
 
 # ---------- Main ----------
 
+_bot_username_cache = None
+
+def _bot_username():
+    global _bot_username_cache
+    if _bot_username_cache:
+        return _bot_username_cache
+    try:
+        import urllib.request
+        resp = urllib.request.urlopen("https://api.telegram.org/bot" + TG_BOT_TOKEN + "/getMe", timeout=5)
+        data = json.loads(resp.read())
+        _bot_username_cache = data["result"]["username"]
+        return _bot_username_cache
+    except Exception:
+        return "kokacolik_bot"
+
+
+def _tg_bot_poll():
+    offset = 0
+    while True:
+        try:
+            import urllib.request, urllib.parse
+            url = "https://api.telegram.org/bot" + TG_BOT_TOKEN + "/getUpdates?timeout=30&offset=" + str(offset)
+            resp = urllib.request.urlopen(url, timeout=35)
+            data = json.loads(resp.read())
+            for upd in data.get("result", []):
+                offset = upd["update_id"] + 1
+                msg = upd.get("message") or upd.get("channel_post")
+                if not msg:
+                    continue
+                text = (msg.get("text") or "").strip()
+                tg_user = msg.get("from", {})
+                tg_uid = tg_user.get("id", 0)
+                tg_nick = tg_user.get("username", "")
+                chat_id = msg.get("chat", {}).get("id", 0)
+                if text.startswith("/start"):
+                    parts = text.split()
+                    if len(parts) >= 2:
+                        code = parts[1].strip()
+                        with lock:
+                            verifs = load_tg_verify()
+                            if code in verifs:
+                                v = verifs.pop(code)
+                                save_tg_verify(verifs)
+                                login = v["login"]
+                                users = load_users()
+                                for u in users:
+                                    if u["login"].lower() == login.lower():
+                                        u["tg_verified"] = True
+                                        u["tg_user_id"] = tg_uid
+                                        u["tg_username"] = v.get("tg_username", tg_nick or "")
+                                save_users(users)
+                                _tg_send(chat_id, "Аккаунт @" + login + " привязан к Telegram!")
+                            else:
+                                _tg_send(chat_id, "Неверный или просроченный код.")
+                    else:
+                        _tg_send(chat_id, "Добро пожаловать! Привяжите аккаунт на сайте.")
+        except Exception:
+            time.sleep(3)
+
+
+def _tg_send(chat_id, text):
+    try:
+        import urllib.request, urllib.parse
+        data = urllib.parse.urlencode({"chat_id": chat_id, "text": text}).encode()
+        urllib.request.urlopen("https://api.telegram.org/bot" + TG_BOT_TOKEN + "/sendMessage", data=data, timeout=5)
+    except Exception:
+        pass
+
+
 ensure_owner()
+
+tg_thread = threading.Thread(target=_tg_bot_poll, daemon=True)
+tg_thread.start()
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=False)

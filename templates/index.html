@@ -372,6 +372,7 @@
         <input id="regName" placeholder="Имя" autocomplete="name">
         <input id="regLogin" placeholder="Логин" autocomplete="username">
         <input id="regPassword" type="password" placeholder="Пароль (минимум 4 символа)" autocomplete="new-password">
+        <input id="regTg" placeholder="Telegram @username (необязательно)">
         <div id="regError" class="auth-error"></div>
         <button type="submit">Зарегистрироваться</button>
       </form>
@@ -851,7 +852,7 @@
     try {
       const data = await api('/api/me');
       if (data.authenticated) {
-        me = { login: data.login, name: data.name, is_admin: data.is_admin, is_owner: data.is_owner, role: data.role || '', avatar: data.avatar, role_hidden: data.role_hidden || false, is_bot: data.is_bot || false, cocacoliki: data.cocacoliki || 0, prefix_bought: data.prefix_bought || false, spam_blocked: data.spam_blocked || false, warnings: data.warnings || 0, tg_username: data.tg_username || '' };
+        me = { login: data.login, name: data.name, is_admin: data.is_admin, is_owner: data.is_owner, role: data.role || '', avatar: data.avatar, role_hidden: data.role_hidden || false, is_bot: data.is_bot || false, cocacoliki: data.cocacoliki || 0, prefix_bought: data.prefix_bought || false, spam_blocked: data.spam_blocked || false, warnings: data.warnings || 0, tg_username: data.tg_username || '', tg_verified: data.tg_verified || false };
         showChat();
       } else showAuth();
     } catch (e) { showAuth(); }
@@ -873,9 +874,17 @@
     const err = $('regError'); err.textContent = '';
     try {
       const data = await api('/api/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: $('regName').value.trim(), login: $('regLogin').value.trim(), password: $('regPassword').value }) });
-      me = { login: data.login, name: data.name, is_admin: data.is_admin, is_owner: data.is_owner, role: data.role || '', avatar: '' };
-      $('regName').value = ''; $('regLogin').value = ''; $('regPassword').value = '';
+      me = { login: data.login, name: data.name, is_admin: data.is_admin, is_owner: data.is_owner, role: data.role || '', avatar: '', tg_username: '' };
+      const tg = $('regTg').value.trim().replace(/^@/, '');
+      $('regName').value = ''; $('regLogin').value = ''; $('regPassword').value = ''; $('regTg').value = '';
       showChat();
+      if (tg) {
+        try {
+          const r = await api('/api/tg/start_verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tg_username: tg }) });
+          me.tg_username = tg;
+          alert('Telegram привязка!\n\nКод: ' + r.code + '\n\nНапишите боту:\n' + r.bot + '?start=' + r.code + '\n\nИли: /start ' + r.code);
+        } catch (e) {}
+      }
     } catch (msg) { err.textContent = msg; }
   }
 
@@ -1527,6 +1536,21 @@
     $('setTgUsername').value = me.tg_username || '';
     $('setTgMsg').textContent = '';
     $('settingsMsg').textContent = '';
+    if (me.tg_username) {
+      (async () => {
+        try {
+          const s = await api('/api/tg/verify_status');
+          const m = $('setTgMsg');
+          if (s.tg_verified) {
+            m.textContent = '✅ Telegram привязан (@' + s.tg_username + ')';
+            m.style.color = 'var(--green)';
+          } else {
+            m.textContent = '⏳ Telegram не привязан. Нажмите "Сохранить" для получения кода.';
+            m.style.color = 'var(--gold)';
+          }
+        } catch(e) {}
+      })();
+    }
     setTheme(localStorage.getItem('theme') || 'dark');
     $('roleHiddenBox').classList.toggle('hidden', !(me.is_owner || me.role === 'senior_admin'));
     if (me.is_owner || me.role === 'senior_admin') {
@@ -1596,10 +1620,12 @@
     msg.textContent = '';
     msg.style.color = 'var(--green)';
     const tg = $('setTgUsername').value.trim();
+    if (!tg) { msg.style.color = 'var(--red)'; msg.textContent = 'Введите TG юзернейм'; return; }
     try {
-      await api('/api/profile/tg_username', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tg_username: tg }) });
+      const r = await api('/api/tg/start_verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tg_username: tg }) });
       me.tg_username = tg;
-      msg.textContent = tg ? 'TG юзернейм сохранён: @' + tg : 'TG юзернейм удалён';
+      msg.innerHTML = '✅ Код: <b>' + r.code + '</b><br>Напишите боту: <a href="' + r.bot + '?start=' + r.code + '" target="_blank" style="color:var(--accent);">@' + r.bot.replace('https://t.me/', '') + '</a> → /start ' + r.code;
+      msg.style.color = 'var(--green)';
       $('setTgUsername').value = '';
     } catch (err) { msg.style.color = 'var(--red)'; msg.textContent = err; }
   });
@@ -3047,7 +3073,7 @@
 
     $('upBusiness').textContent = u.prefix || '—';
     $('upExtension').textContent = u.extension || '—';
-    $('upTgUsername').textContent = u.tg_username ? '@' + u.tg_username : '—';
+    $('upTgUsername').textContent = u.tg_username ? '@' + u.tg_username + (u.tg_verified ? ' ✅' : ' ⏳') : '—';
     $('upMuteStatus').innerHTML = u.muted
       ? '<span style="color:var(--red);">🔇 ' + formatMutedTime(u.muted_until) + '</span>'
       : '<span style="color:var(--muted);">Активен</span>';
