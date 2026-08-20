@@ -21,6 +21,7 @@ APPLICATIONS_FILE = os.path.join(APP_DIR, "applications.json")
 BOTS_FILE = os.path.join(APP_DIR, "bots.json")
 BANNED_WORDS_FILE = os.path.join(APP_DIR, "banned_words.json")
 TG_BOT_TOKEN = "8617968405:AAGSTL0skpjjccxJGDxb6M6y-UlIVauwl84"
+TG_BOT_USERNAME = "gigvbjnfgijnfhighbot"
 TG_VERIFY_FILE = os.path.join(APP_DIR, "tg_verify.json")
 UPLOAD_DIR = os.path.join(APP_DIR, "uploads")
 AVATAR_DIR = os.path.join(UPLOAD_DIR, "avatars")
@@ -2729,7 +2730,7 @@ def _bot_username():
         _bot_username_cache = data["result"]["username"]
         return _bot_username_cache
     except Exception:
-        return "kokacolik_bot"
+        return TG_BOT_USERNAME
 
 
 def _tg_bot_poll():
