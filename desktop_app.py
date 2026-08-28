@@ -322,6 +322,27 @@ class Api:
         return {"ok": True}
 
 
+def _watch_page(window, url):
+    """If the page fails to load (free proxy blips), keep reloading until it opens."""
+    while True:
+        time.sleep(4)
+        try:
+            js = "document.location.protocol + '|' + document.readyState"
+            proto, state = (window.evaluate_js(js) or "||").split("|")[:2]
+        except Exception:
+            proto, state = None, None
+        if proto == "file:":
+            continue
+        if proto and proto.startswith("https"):
+            continue
+        if state == "loading" or state == "interactive":
+            continue
+        try:
+            window.load_url(url)
+        except Exception:
+            pass
+
+
 # ---------- Main ----------
 
 def main():
@@ -373,6 +394,8 @@ def main():
         menu = []
 
     try:
+        if url.startswith("http"):
+            threading.Thread(target=_watch_page, args=(window, url), daemon=True).start()
         webview.start(
             debug=False,
             http_server=False,
