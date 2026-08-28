@@ -12,13 +12,18 @@ import urllib.request
 import zipfile
 
 APP_TITLE = "Кокаколик"
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+if getattr(sys, "frozen", False):
+    BASE_DIR = os.path.dirname(os.path.abspath(sys.executable))
+    APP_DIR = sys._MEIPASS
+else:
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    APP_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(BASE_DIR, "app_config.json")
 BIN_DIR = os.path.join(BASE_DIR, "bin")
 SING_BOX = os.path.join(BIN_DIR, "sing-box.exe")
 SG_CONFIG = os.path.join(BASE_DIR, "sg_config.json")
 DATA_DIR = os.path.join(BASE_DIR, "data")
-SETTINGS_PAGE = os.path.join(BASE_DIR, "settings.html")
+SETTINGS_PAGE = os.path.join(APP_DIR, "settings.html")
 PROXY_PORT = 2080
 LOG_FILE = os.path.join(BASE_DIR, "desktop_error.log")
 
@@ -49,11 +54,25 @@ def _already_running():
 
 
 def _ensure_webview2_patch():
+    frozen = bool(getattr(sys, "frozen", False))
     try:
-        import webview.platforms.edgechromium as ec
-        path = os.path.abspath(ec.__file__)
+        import importlib.util
+        spec = importlib.util.find_spec("webview.platforms.edgechromium")
+        if spec is None or not spec.origin:
+            log("webview edgechromium not found")
+            return
+        path = os.path.abspath(spec.origin)
     except Exception as e:
         log("webview edgechromium not available: %s" % e)
+        return
+    if frozen:
+        if os.path.exists(path):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    if "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS" in f.read():
+                        return
+            except OSError:
+                pass
         return
     marker = "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"
     try:
@@ -316,21 +335,20 @@ def main():
     _ensure_webview2_patch()
 
     cfg = load_config()
-    if cfg.get("server"):
-        # run mode: maybe start proxy
-        if cfg.get("proxy_id"):
-            preset = find_preset(cfg["proxy_id"])
-            if preset:
-                err = start_proxy(parse_vless(preset["link"]))
-                if err:
-                    ctypes.windll.user32.MessageBoxW(None, "Ошибка прокси:\n" + err, APP_TITLE, 0x10)
-        if cfg.get("proxy_id"):
-            os.environ["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = (
-                "--proxy-server=socks5://127.0.0.1:{0} --proxy-bypass-list=<-loopback>".format(PROXY_PORT)
-            )
-        url = cfg.get("server")
-    else:
-        url = "file:///" + SETTINGS_PAGE.replace("\\", "/")
+    if not cfg.get("server"):
+        cfg = {"server": DEFAULT_SERVER, "proxy_id": "netherlands1"}
+        save_config(cfg)
+    if cfg.get("proxy_id"):
+        preset = find_preset(cfg["proxy_id"])
+        if preset:
+            err = start_proxy(parse_vless(preset["link"]))
+            if err:
+                ctypes.windll.user32.MessageBoxW(None, "Ошибка прокси:\n" + err, APP_TITLE, 0x10)
+    if cfg.get("proxy_id"):
+        os.environ["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = (
+            "--proxy-server=socks5://127.0.0.1:{0} --proxy-bypass-list=<-loopback>".format(PROXY_PORT)
+        )
+    url = cfg.get("server") or ("file:///" + SETTINGS_PAGE.replace("\\", "/"))
 
     api = Api()
     _ = api

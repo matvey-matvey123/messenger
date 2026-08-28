@@ -67,7 +67,11 @@
         document.getElementById('proxySel').appendChild(o);
         if (p.id === s.proxy_id) { o.selected = true; has = true; }
       }
-      if (!has) document.getElementById('proxySel').selectedIndex = 0;
+      if (!has) {
+        for (const opt of document.getElementById('proxySel').options) {
+          if (opt.value) { opt.selected = true; break; }
+        }
+      }
       const sel = document.getElementById('serverSel');
       const customIsPreset = ['https://matveymatveyg.pythonanywhere.com/', 'https://kokacolik.onrender.com/'].includes(s.server);
       sel.value = customIsPreset ? s.server : 'custom';

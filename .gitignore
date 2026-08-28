@@ -5,3 +5,7 @@ data/
 desktop_error.log
 err.txt
 out.txt
+build/
+dist/
+*.spec
+__pycache__/
