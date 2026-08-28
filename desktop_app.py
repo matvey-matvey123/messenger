@@ -48,6 +48,40 @@ def _already_running():
     return ctypes.windll.kernel32.GetLastError() == 183, mutex
 
 
+def _ensure_webview2_patch():
+    try:
+        import webview.platforms.edgechromium as ec
+        path = os.path.abspath(ec.__file__)
+    except Exception as e:
+        log("webview edgechromium not available: %s" % e)
+        return
+    marker = "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            src = f.read()
+    except OSError as e:
+        log("cannot read webview patch file: %s" % e)
+        return
+    if marker in src:
+        return
+    anchor = "props.AdditionalBrowserArguments = '--disable-features=ElasticOverscroll'"
+    if anchor not in src:
+        log("webview patch anchor not found")
+        return
+    patch = (
+        "\n"
+        "        _extra = os.environ.get('WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS')\n"
+        "        if _extra:\n"
+        "            props.AdditionalBrowserArguments += ' ' + _extra\n"
+    )
+    src = src.replace(anchor, anchor + patch, 1)
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(src)
+    except OSError as e:
+        log("cannot write webview patch: %s" % e)
+
+
 def load_config():
     if not os.path.exists(CONFIG_FILE):
         return {}
@@ -246,6 +280,8 @@ def main():
         return
 
     import webview
+
+    _ensure_webview2_patch()
 
     cfg = load_config()
     if cfg.get("server"):
