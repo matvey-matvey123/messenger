@@ -1,8 +1,7 @@
-__pycache__/
-*.py[cod]
-*.log
-.env
-.venv/
-venv/
-.DS_Store
-uploads/
+app_config.json
+sg_config.json
+bin/
+data/
+desktop_error.log
+err.txt
+out.txt
