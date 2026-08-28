@@ -13,11 +13,18 @@ import zipfile
 
 APP_TITLE = "Кокаколик"
 if getattr(sys, "frozen", False):
-    BASE_DIR = os.path.dirname(os.path.abspath(sys.executable))
     APP_DIR = sys._MEIPASS
+    BASE_DIR = os.path.join(
+        os.environ.get("LOCALAPPDATA") or os.path.expanduser(r"~\AppData\Local"),
+        "Кокаколик",
+    )
 else:
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     APP_DIR = os.path.dirname(os.path.abspath(__file__))
+try:
+    os.makedirs(BASE_DIR, exist_ok=True)
+except OSError:
+    pass
 CONFIG_FILE = os.path.join(BASE_DIR, "app_config.json")
 BIN_DIR = os.path.join(BASE_DIR, "bin")
 SING_BOX = os.path.join(BIN_DIR, "sing-box.exe")
