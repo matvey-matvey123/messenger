@@ -862,11 +862,24 @@
     e.preventDefault();
     const err = $('loginError'); err.textContent = '';
     try {
-      const data = await api('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: $('loginLogin').value.trim(), password: $('loginPassword').value }) });
+      const data = await apiWithRetry('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: $('loginLogin').value.trim(), password: $('loginPassword').value }) });
       me = { login: data.login, name: data.name, is_admin: data.is_admin, is_owner: data.is_owner, role: data.role || '', avatar: data.avatar, role_hidden: data.role_hidden || false };
       $('loginPassword').value = '';
       showChat();
     } catch (msg) { err.textContent = msg; }
+  }
+
+  async function apiWithRetry(url, opts) {
+    let lastErr = null;
+    for (let i = 0; i < 3; i++) {
+      try { return await api(url, opts); }
+      catch (err) {
+        lastErr = err;
+        if (i < 2) await new Promise(r => setTimeout(r, 1200));
+      }
+    }
+    const isNet = lastErr && lastErr instanceof TypeError;
+    throw (isNet ? 'Не удалось подключиться к серверу. Проверьте соединение и повторите.' : lastErr);
   }
 
   async function doRegister(e) {

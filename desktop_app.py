@@ -162,6 +162,9 @@ def make_sg_config(vless):
 # ---------- sing-box ----------
 
 _singbox_proc = None
+_last_vless = None
+_stop_watchdog = False
+_lock = threading.Lock()
 
 
 def ensure_singbox():
@@ -199,11 +202,8 @@ def ensure_singbox():
         return False, "Не удалось скачать sing-box: {0}".format(e)
 
 
-def start_proxy(vless):
+def _spawn_singbox(vless):
     global _singbox_proc
-    ok, err = ensure_singbox()
-    if not ok:
-        return err
     cfg = make_sg_config(vless)
     with open(SG_CONFIG, "w", encoding="utf-8") as f:
         json.dump(cfg, f, ensure_ascii=False, indent=2)
@@ -219,8 +219,40 @@ def start_proxy(vless):
     return None
 
 
+def _watchdog():
+    while not _stop_watchdog:
+        time.sleep(5)
+        if _stop_watchdog:
+            break
+        try:
+            if _singbox_proc is not None and _singbox_proc.poll() is not None:
+                log("sing-box exited with code %s, restarting..." % _singbox_proc.poll())
+                if _last_vless:
+                    _spawn_singbox(_last_vless)
+        except Exception as e:
+            log("watchdog error: %s" % e)
+
+
+def start_proxy(vless):
+    global _last_vless, _stop_watchdog
+    ok, err = ensure_singbox()
+    if not ok:
+        return err
+    _last_vless = vless
+    err = _spawn_singbox(vless)
+    if err:
+        return err
+    if not _singbox_proc or _singbox_proc.poll() is not None:
+        return "Не удалось запустить sing-box"
+    if not _stop_watchdog:
+        _stop_watchdog = False
+        threading.Thread(target=_watchdog, daemon=True).start()
+    return None
+
+
 def stop_proxy():
-    global _singbox_proc
+    global _singbox_proc, _stop_watchdog
+    _stop_watchdog = True
     if _singbox_proc:
         try:
             _singbox_proc.terminate()
