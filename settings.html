@@ -72,8 +72,11 @@
           if (opt.value) { opt.selected = true; break; }
         }
       }
+      if (String(s.server).indexOf('workers.dev') !== -1) {
+        document.getElementById('proxySel').value = '';
+      }
       const sel = document.getElementById('serverSel');
-      const customIsPreset = ['https://matveymatveyg.pythonanywhere.com/', 'https://kokacolik.onrender.com/'].includes(s.server);
+      const customIsPreset = ['https://matveymatveyg.pythonanywhere.com/', 'https://kokacolik.onrender.com/'].includes(s.server) || String(s.server).indexOf('workers.dev') !== -1;
       sel.value = customIsPreset ? s.server : 'custom';
       const ci = document.getElementById('serverCustom');
       ci.style.display = sel.value === 'custom' ? 'block' : 'none';
@@ -97,7 +100,8 @@
     }
     document.getElementById('connectBtn').disabled = true;
     document.getElementById('spinner').style.display = 'block';
-    const proxyId = document.getElementById('proxySel').value;
+    let proxyId = document.getElementById('proxySel').value;
+    if (server.indexOf('workers.dev') !== -1) proxyId = '';
     try {
       await api.save_and_connect(server, proxyId);
     } catch (e) {
