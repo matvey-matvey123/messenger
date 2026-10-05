@@ -2,13 +2,12 @@
 // Отдаёт фронтенд из GitHub Pages, а /api и /uploads проксирует на PythonAnywhere.
 // Вставьте этот код в облачный редактор Cloudflare (Workers > Create > name: kokacolik > Edit code > Deploy).
 
-const FRONT = 'https://matvey-matvey123.github.io/messenger';
 const BACK = 'https://matveymatveyg.pythonanywhere.com';
 
 const BACKEND_PREFIXES = ['/api', '/uploads'];
 
 export default {
-  async fetch(request) {
+  async fetch(request, env) {
     const url = new URL(request.url);
 
     const isBackend = BACKEND_PREFIXES.some(
@@ -16,18 +15,7 @@ export default {
     );
 
     if (!isBackend) {
-      // Фронтенд из GitHub Pages
-      const target = FRONT + url.pathname + url.search;
-      const resp = await fetch(target, {
-        method: 'GET',
-        redirect: 'follow',
-        headers: { 'user-agent': 'Mozilla/5.0' },
-      });
-      return new Response(resp.body, {
-        status: resp.status,
-        statusText: resp.statusText,
-        headers: resp.headers,
-      });
+      return env.ASSETS.fetch(request);
     }
 
     // API / вложения — на PythonAnywhere (с cookie сессии туда и обратно)
