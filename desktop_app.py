@@ -38,8 +38,13 @@ DEFAULT_SERVER = "https://matveymatveyg.pythonanywhere.com/"
 
 VLESS_PRESETS = [
     {
+        "id": "denmark1",
+        "name": "Дания | 1 (бесплатный)",
+        "link": "trojan://oFbYJtE0S9FY-HGxToQrQ8umshKMgdHk@vel.cishosts.org:8443?security=tls&type=tcp&sni=vel.cishosts.org&alpn=h2%2Chttp%2F1.1&fp=qq",
+    },
+    {
         "id": "netherlands1",
-        "name": "Нидерланды | 1 (бесплатный)",
+        "name": "Нидерланды | 1 (старый, не работает)",
         "link": "vless://f294108f-8fe9-4422-9837-69212a8fb4ec@freeshka.i-love-russia.online:443?encryption=none&flow=xtls-rprx-vision&security=reality&sni=freeshka.i-love-russia.online&fp=firefox&pbk=Tm50a8xPW6cazNhgmTSHNbVfqaplvNSx0BQoJCGe3jU&sid=4aa753c327e7fd94&type=tcp&headerType=none&host=freeshka.i-love-russia.online",
     },
 ]
@@ -153,25 +158,72 @@ def parse_vless(link):
     }
 
 
-def make_sg_config(vless):
-    outbound = {
-        "type": "vless",
-        "tag": "proxy",
-        "server": vless["server"],
-        "server_port": vless["port"],
-        "uuid": vless["uuid"],
+def parse_trojan(link):
+    u = urllib.parse.urlparse(link.strip())
+    if u.scheme != "trojan":
+        return None
+    userinfo = u.netloc.rsplit("@", 1)[0]
+    hostport = u.netloc.rsplit("@", 1)[1]
+    password = urllib.parse.unquote(userinfo)
+    if ":" in hostport:
+        server, port = hostport.rsplit(":", 1)
+        port = int(port)
+    else:
+        server, port = hostport, 443
+    qs = urllib.parse.parse_qs(u.query)
+    alpn_raw = (qs.get("alpn") or [""])[0]
+    alpn = [x for x in alpn_raw.split(",") if x]
+    return {
+        "type": "trojan",
+        "password": password,
+        "server": server,
+        "port": port,
+        "sni": (qs.get("sni") or [server])[0],
+        "fp": (qs.get("fp") or ["chrome"])[0],
+        "alpn": alpn,
     }
-    if vless["flow"]:
-        outbound["flow"] = vless["flow"]
-    tls = {"enabled": True, "server_name": vless["sni"]}
-    utls = {"enabled": True, "fingerprint": vless["fp"]}
-    if vless["security"] == "reality" and vless["pbk"]:
-        reality = {"enabled": True, "public_key": vless["pbk"]}
-        if vless["sid"]:
-            reality["short_id"] = vless["sid"]
-        tls["reality"] = reality
-    tls["utls"] = utls
-    outbound["tls"] = tls
+
+
+def parse_link(link):
+    link = link.strip()
+    if link.lower().startswith("trojan://"):
+        return parse_trojan(link)
+    return parse_vless(link)
+
+
+def make_sg_config(node):
+    if node.get("type") == "trojan":
+        tls = {"enabled": True, "server_name": node["sni"]}
+        if node["alpn"]:
+            tls["alpn"] = node["alpn"]
+        tls["utls"] = {"enabled": True, "fingerprint": node["fp"]}
+        outbound = {
+            "type": "trojan",
+            "tag": "proxy",
+            "server": node["server"],
+            "server_port": node["port"],
+            "password": node["password"],
+            "tls": tls,
+        }
+    else:
+        outbound = {
+            "type": "vless",
+            "tag": "proxy",
+            "server": node["server"],
+            "server_port": node["port"],
+            "uuid": node["uuid"],
+        }
+        if node["flow"]:
+            outbound["flow"] = node["flow"]
+        tls = {"enabled": True, "server_name": node["sni"]}
+        utls = {"enabled": True, "fingerprint": node["fp"]}
+        if node["security"] == "reality" and node["pbk"]:
+            reality = {"enabled": True, "public_key": node["pbk"]}
+            if node["sid"]:
+                reality["short_id"] = node["sid"]
+            tls["reality"] = reality
+        tls["utls"] = utls
+        outbound["tls"] = tls
     return {
         "log": {"level": "warn", "timestamp": True},
         "inbounds": [
@@ -364,12 +416,12 @@ def main():
 
     cfg = load_config()
     if not cfg.get("server"):
-        cfg = {"server": DEFAULT_SERVER, "proxy_id": "netherlands1"}
+        cfg = {"server": DEFAULT_SERVER, "proxy_id": "denmark1"}
         save_config(cfg)
     if cfg.get("proxy_id"):
         preset = find_preset(cfg["proxy_id"])
         if preset:
-            err = start_proxy(parse_vless(preset["link"]))
+            err = start_proxy(parse_link(preset["link"]))
             if err:
                 ctypes.windll.user32.MessageBoxW(None, "Ошибка прокси:\n" + err, APP_TITLE, 0x10)
     if cfg.get("proxy_id"):
