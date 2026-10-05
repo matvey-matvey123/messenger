@@ -72,7 +72,7 @@
           if (opt.value) { opt.selected = true; break; }
         }
       }
-      if (String(s.server).indexOf('workers.dev') !== -1) {
+      if (String(s.server).indexOf('pythonanywhere') === -1) {
         document.getElementById('proxySel').value = '';
       }
       const sel = document.getElementById('serverSel');
@@ -101,7 +101,7 @@
     document.getElementById('connectBtn').disabled = true;
     document.getElementById('spinner').style.display = 'block';
     let proxyId = document.getElementById('proxySel').value;
-    if (server.indexOf('workers.dev') !== -1) proxyId = '';
+    if (server.indexOf('pythonanywhere') === -1) proxyId = '';
     try {
       await api.save_and_connect(server, proxyId);
     } catch (e) {
