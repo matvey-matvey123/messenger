@@ -34,7 +34,7 @@ SETTINGS_PAGE = os.path.join(APP_DIR, "settings.html")
 PROXY_PORT = 2080
 LOG_FILE = os.path.join(BASE_DIR, "desktop_error.log")
 
-DEFAULT_SERVER = "https://matveymatveyg.pythonanywhere.com/"
+DEFAULT_SERVER = "https://messenger.matveygorvat.workers.dev/"
 
 VLESS_PRESETS = [
     {
@@ -416,7 +416,10 @@ def main():
 
     cfg = load_config()
     if not cfg.get("server"):
-        cfg = {"server": DEFAULT_SERVER, "proxy_id": "denmark1"}
+        cfg = {"server": DEFAULT_SERVER, "proxy_id": ""}
+        save_config(cfg)
+    elif "pythonanywhere" in str(cfg.get("server")) or "onrender" in str(cfg.get("server")):
+        cfg = {"server": DEFAULT_SERVER, "proxy_id": cfg.get("proxy_id", "")}
         save_config(cfg)
     if cfg.get("proxy_id"):
         preset = find_preset(cfg["proxy_id"])

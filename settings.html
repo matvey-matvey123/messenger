@@ -32,8 +32,8 @@
 
     <label>Сервер</label>
     <select id="serverSel">
-      <option value="https://matveymatveyg.pythonanywhere.com/">PythonAnywhere (основной)</option>
-      <option value="https://kokacolik.onrender.com/">Render</option>
+      <option value="https://messenger.matveygorvat.workers.dev/">Кокаколик (основной, без VPN)</option>
+      <option value="https://matveymatveyg.pythonanywhere.com/">PythonAnywhere (нужен прокси)</option>
       <option value="custom">Свой URL...</option>
     </select>
     <input id="serverCustom" placeholder="https://..." style="margin-top:8px;display:none;">
@@ -63,7 +63,7 @@
       for (const p of s.proxies) {
         const o = document.createElement('option');
         o.value = p.id; o.textContent = p.name;
-        if (p.name === 'Нидерланды | 1 (бесплатный)') o.textContent = '🇳🇱 Нидерланды | 1 (бесплатный)';
+        if (p.name.indexOf('Дания') === 0) o.textContent = '🇩🇰 ' + p.name;
         document.getElementById('proxySel').appendChild(o);
         if (p.id === s.proxy_id) { o.selected = true; has = true; }
       }
@@ -76,7 +76,7 @@
         document.getElementById('proxySel').value = '';
       }
       const sel = document.getElementById('serverSel');
-      const customIsPreset = ['https://matveymatveyg.pythonanywhere.com/', 'https://kokacolik.onrender.com/'].includes(s.server) || String(s.server).indexOf('workers.dev') !== -1;
+      const customIsPreset = ['https://messenger.matveygorvat.workers.dev/', 'https://matveymatveyg.pythonanywhere.com/'].includes(s.server) || String(s.server).indexOf('workers.dev') !== -1;
       sel.value = customIsPreset ? s.server : 'custom';
       const ci = document.getElementById('serverCustom');
       ci.style.display = sel.value === 'custom' ? 'block' : 'none';
